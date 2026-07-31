@@ -131,6 +131,23 @@ func TestInquiry(t *testing.T) {
 	}
 }
 
+func TestInquiryReportsPaidButUnverified(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		// Status 2 is "paid, not verified": Zibal reverses it unless the
+		// merchant still calls Verify.
+		"/v1/inquiry": testutil.JSON(`{"result":100,"status":2,"amount":150000,"refNumber":"9988"}`),
+	})
+	gw, _ := zibal.New(core.Config{MerchantKey: "m"}, core.WithBaseURL(server.URL))
+
+	res, err := gw.Inquiry(context.Background(), core.InquiryRequest{Token: "3355"})
+	if err != nil {
+		t.Fatalf("Inquiry() error = %v", err)
+	}
+	if res.Status != core.StatusPaid {
+		t.Fatalf("status = %v, want paid", res.Status)
+	}
+}
+
 func TestParseCallback(t *testing.T) {
 	gw, _ := zibal.New(core.Config{MerchantKey: "m"})
 	request := httptest.NewRequest(http.MethodGet, "/cb?trackId=3355&success=1&orderId=1001", nil)

@@ -267,15 +267,25 @@ func parseTrackID(token string) (int64, error) {
 }
 
 // mapStatus translates a Zibal transaction status into the shared vocabulary.
+//
+// Zibal separates "paid" from "paid and verified", and the difference decides
+// whether the merchant still owes the provider a verification: a transaction
+// left at 2 is reversed to the payer. Reporting it as verified is what would
+// make a merchant recovering a lost callback stop before the call that keeps
+// the money.
 func mapStatus(status int) core.Status {
 	switch status {
-	case 1, 2:
+	case 1:
 		return core.StatusVerified
-	case -1, -2:
+	case 2:
+		return core.StatusPaid
+	case -1:
 		return core.StatusPending
-	case 3, 4, 5:
+	case 3:
 		return core.StatusCanceled
 	default:
+		// -2 is an internal Zibal failure; 4 to 12 are the acquirer's refusals
+		// (unknown card, no funds, limits), none of which the payer chose.
 		return core.StatusFailed
 	}
 }
