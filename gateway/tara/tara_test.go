@@ -256,3 +256,20 @@ func TestNewValidatesTheCredentials(t *testing.T) {
 		t.Fatalf("error = %v, want ErrInvalidConfig", err)
 	}
 }
+
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	authPath, authHandler := authenticate()
+	server := testutil.NewServer(t, testutil.Routes{
+		authPath: authHandler,
+		"/api/purchaseVerify": testutil.JSON(
+			`{"result":0,"rrn":"552211","amount":50000,"cardNumber":"627412******3344"}`),
+	})
+	gw, _ := tara.New(merchant, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{
+		Token: "trace-77", OrderID: "4004", Amount: core.Rial(500_000),
+	})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}

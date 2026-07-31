@@ -166,9 +166,9 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		return core.VerifyResponse{}, err
 	}
 
-	amount := req.Amount
-	if verified.Amount > 0 {
-		amount = core.Rial(verified.Amount)
+	amount, err := core.SettledAmount(Name, req.Amount, core.Rial(verified.Amount))
+	if err != nil {
+		return core.VerifyResponse{}, err
 	}
 	reference := verified.ReferenceNumber
 	if reference == "" {

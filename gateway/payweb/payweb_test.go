@@ -91,3 +91,15 @@ func TestParseCallback(t *testing.T) {
 		t.Fatalf("callback = %+v", callback)
 	}
 }
+
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/Payment/verify": testutil.JSON(`{"amount":15000,"trackingCode":"TR-9"}`),
+	})
+	gw, _ := payweb.New(core.Config{MerchantKey: "t"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "PW-1", Amount: core.Rial(150_000)})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}

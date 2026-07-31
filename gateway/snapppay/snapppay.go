@@ -250,18 +250,28 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 	if err != nil {
 		return core.VerifyResponse{}, err
 	}
+	// Settling is what makes the payment final and releases the goods, so the
+	// amount is reconciled before that step rather than after it.
+	amount, err := core.SettledAmount(Name, req.Amount, core.Rial(verified.Amount))
+	if err != nil {
+		return core.VerifyResponse{}, err
+	}
 	if !g.settings.manualSettle {
-		settled, settleRes, err := g.call(ctx, "verify", settlePath, req.Token)
-		if err != nil {
-			return core.VerifyResponse{}, err
+		settled, settleRes, settleErr := g.call(ctx, "verify", settlePath, req.Token)
+		if settleErr != nil {
+			return core.VerifyResponse{}, settleErr
 		}
-		verified, res = settled, settleRes
+		// The settle answer is thinner than the verify one, so it adds to what
+		// verification reported instead of replacing it.
+		res = settleRes
+		if settled.ReferenceNumber != "" {
+			verified.ReferenceNumber = settled.ReferenceNumber
+		}
+		if settled.TransactionID != "" {
+			verified.TransactionID = settled.TransactionID
+		}
 	}
 
-	amount := req.Amount
-	if verified.Amount > 0 {
-		amount = core.Rial(verified.Amount)
-	}
 	reference := verified.ReferenceNumber
 	if reference == "" {
 		reference = req.ReferenceNumber

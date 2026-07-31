@@ -165,6 +165,23 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithCode(strconv.Itoa(out.Code)).WithMessage(out.Description)
 	}
 
+	// YekPay states the settled amount in the currency the payer was charged
+	// in. That is a [core.Money] only when the terminal sells in Rial; for the
+	// other currencies the figures are compared as the provider counts them,
+	// since core.Money carries no unit for them.
+	amount := req.Amount
+	if g.settings.fromCurrency == CurrencyIRR {
+		settled, err := core.SettledAmount(Name, req.Amount, core.Rial(out.Amount))
+		if err != nil {
+			return core.VerifyResponse{}, err
+		}
+		amount = settled
+	} else if out.Amount > 0 && !req.Amount.IsZero() && out.Amount != g.amount(req.Amount) {
+		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrAmountMismatch).
+			WithMessage("the provider settled " + strconv.FormatInt(out.Amount, 10) +
+				" in currency " + strconv.Itoa(g.settings.fromCurrency))
+	}
+
 	orderID := out.OrderNumber
 	if orderID == "" {
 		orderID = req.OrderID
@@ -174,7 +191,7 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		ReferenceNumber: out.Reference,
 		TransactionID:   req.Token,
 		OrderID:         orderID,
-		Amount:          req.Amount,
+		Amount:          amount,
 		Raw:             res.Body,
 	}, nil
 }

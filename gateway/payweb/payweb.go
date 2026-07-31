@@ -152,9 +152,9 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithMessage(firstNonEmpty(out.Message, res.Body))
 	}
 
-	amount := req.Amount
-	if out.Amount > 0 {
-		amount = core.Rial(int64(out.Amount))
+	amount, err := core.SettledAmount(Name, req.Amount, core.Rial(int64(out.Amount)))
+	if err != nil {
+		return core.VerifyResponse{}, err
 	}
 	orderID := out.ClientRefID
 	if orderID == "" {
