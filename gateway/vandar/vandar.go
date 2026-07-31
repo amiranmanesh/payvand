@@ -182,9 +182,9 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithMessage(firstError(verified.Errors, verified.Message))
 	}
 
-	amount := req.Amount
-	if parsed, err := strconv.ParseInt(verified.Amount, 10, 64); err == nil && parsed > 0 {
-		amount = core.Rial(parsed)
+	amount, err := core.SettledAmount(Name, req.Amount, core.Rial(rials(verified.Amount)))
+	if err != nil {
+		return core.VerifyResponse{}, err
 	}
 	var fee int64
 	if verified.Wage != nil {
@@ -257,6 +257,21 @@ func (g *Gateway) ParseCallback(r *http.Request) (core.Callback, error) {
 		Code:      status,
 		Values:    values,
 	}, nil
+}
+
+// rials reads the amount Vandar reports, which arrives as a decimal string
+// ("1000.00") and would be rejected outright by an integer parse. The fraction
+// is dropped rather than rounded: Vandar settles whole Rial and the digits
+// after the point are always zero.
+func rials(value string) int64 {
+	if point := strings.IndexByte(value, '.'); point >= 0 {
+		value = value[:point]
+	}
+	parsed, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
 }
 
 // parseTime converts a Vandar payment date ("2006-01-02 15:04:05").

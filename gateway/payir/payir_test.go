@@ -105,3 +105,15 @@ func TestSandboxUsesTestKey(t *testing.T) {
 		t.Fatalf("api = %q, want the sandbox key", form["api"])
 	}
 }
+
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/pg/verify": testutil.JSON(`{"status":1,"amount":15000,"transId":8899,"factorNumber":"1001"}`),
+	})
+	gw, _ := payir.New(core.Config{MerchantKey: "k"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "tok-1", Amount: core.Rial(150_000)})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}

@@ -97,6 +97,18 @@ func TestVerify(t *testing.T) {
 	}
 }
 
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/v1/verify": testutil.JSON(`{"result":100,"amount":15000,"refNumber":"9988","status":1}`),
+	})
+	gw, _ := zibal.New(core.Config{MerchantKey: "m"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "3355", Amount: core.Rial(150_000)})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}
+
 func TestVerifyRejectsNonNumericToken(t *testing.T) {
 	gw, _ := zibal.New(core.Config{MerchantKey: "m"})
 	if _, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "not-a-track-id"}); !errors.Is(err, core.ErrInvalidRequest) {

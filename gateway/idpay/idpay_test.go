@@ -121,3 +121,18 @@ func TestParseCallback(t *testing.T) {
 		t.Fatalf("callback = %+v", callback)
 	}
 }
+
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/v1.1/payment/verify": testutil.JSON(`{"status":100,"track_id":9911,"id":"id-1","order_id":"1001",
+			"amount":15000,"payment":{"track_id":9911,"amount":15000}}`),
+	})
+	gw, _ := idpay.New(core.Config{MerchantKey: "k"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{
+		Token: "id-1", OrderID: "1001", Amount: core.Rial(150_000),
+	})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}

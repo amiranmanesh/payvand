@@ -176,9 +176,9 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithCode(strconv.Itoa(out.ErrorCode)).WithMessage(out.ErrorMessage)
 	}
 
-	amount := req.Amount
-	if out.Amount > 0 {
-		amount = core.Rial(out.Amount)
+	amount, err := core.SettledAmount(Name, req.Amount, core.Rial(out.Amount))
+	if err != nil {
+		return core.VerifyResponse{}, err
 	}
 	orderID := req.OrderID
 	if out.FactorNumber != "" {

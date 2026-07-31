@@ -97,3 +97,17 @@ func TestParseCallback(t *testing.T) {
 		t.Fatalf("callback = %+v", callback)
 	}
 }
+
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/payment/gateway-result-second": testutil.JSON(`{"status":1,"amount":"15000","factorId":"1001"}`),
+	})
+	gw, _ := bitpay.New(core.Config{MerchantKey: "k"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{
+		Token: "123456", ReferenceNumber: "trans-9", Amount: core.Rial(150_000),
+	})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}

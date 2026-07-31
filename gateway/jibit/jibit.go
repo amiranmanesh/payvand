@@ -220,9 +220,11 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithCode(out.Status).WithMessage("jibit did not verify the purchase")
 	}
 
-	// The verify endpoint answers with a status only, so the reference number
-	// and the card come from the callback the caller passed in, or from an
-	// inquiry when the caller has neither.
+	// The verify endpoint answers with a status only, so the reference number,
+	// the card and above all the amount come from the purchase itself. The
+	// inquiry is what makes the settled amount checkable at all here, so it is
+	// worth its round trip whenever the caller stated what it expects to be
+	// paid, and not only when the callback fields are missing.
 	verified := core.VerifyResponse{
 		ReferenceNumber: req.ReferenceNumber,
 		TransactionID:   req.Token,
@@ -231,14 +233,19 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		Amount:          req.Amount,
 		Raw:             res.Body,
 	}
-	if verified.ReferenceNumber == "" {
-		if inquiry, err := g.Inquiry(ctx, core.InquiryRequest{Token: req.Token}); err == nil {
-			verified.ReferenceNumber = inquiry.ReferenceNumber
+	if verified.ReferenceNumber == "" || !req.Amount.IsZero() {
+		inquiry, inquiryErr := g.Inquiry(ctx, core.InquiryRequest{Token: req.Token})
+		if inquiryErr == nil {
+			amount, err := core.SettledAmount(Name, req.Amount, inquiry.Amount)
+			if err != nil {
+				return core.VerifyResponse{}, err
+			}
+			verified.Amount = amount
+			if verified.ReferenceNumber == "" {
+				verified.ReferenceNumber = inquiry.ReferenceNumber
+			}
 			if verified.CardNumber == "" {
 				verified.CardNumber = inquiry.CardNumber
-			}
-			if verified.Amount.Amount == 0 {
-				verified.Amount = inquiry.Amount
 			}
 		}
 	}

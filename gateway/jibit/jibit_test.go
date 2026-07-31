@@ -117,6 +117,9 @@ func TestVerify(t *testing.T) {
 	server := testutil.NewServer(t, testutil.Routes{
 		tokenPath:                     tokenHandler,
 		"/v3/purchases/700123/verify": testutil.JSON(`{"status":"SUCCESSFUL"}`),
+		// Verify reads the purchase back, since its own answer carries no amount.
+		"/v3/purchases": testutil.JSON(`{"elements":[{"purchaseId":700123,"state":"VERIFIED",
+			"amount":150000,"pspRrn":"884422"}]}`),
 	})
 	gw, _ := jibit.New(core.Config{MerchantKey: "k", Password: "s"}, core.WithBaseURL(server.URL))
 
@@ -137,6 +140,25 @@ func TestVerify(t *testing.T) {
 		t.Errorf("transaction = %q", res.TransactionID)
 	case res.Amount.Rial() != 150_000:
 		t.Errorf("amount = %v", res.Amount)
+	}
+}
+
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	tokenPath, tokenHandler := tokens()
+	server := testutil.NewServer(t, testutil.Routes{
+		tokenPath:                     tokenHandler,
+		"/v3/purchases/700123/verify": testutil.JSON(`{"status":"SUCCESSFUL"}`),
+		"/v3/purchases": testutil.JSON(`{"elements":[{"purchaseId":700123,"state":"VERIFIED",
+			"amount":15000,"pspRrn":"884422"}]}`),
+	})
+	gw, _ := jibit.New(core.Config{MerchantKey: "k", Password: "s"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{
+		Token:  "700123",
+		Amount: core.Rial(150_000),
+	})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
 	}
 }
 
