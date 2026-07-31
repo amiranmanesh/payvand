@@ -179,7 +179,13 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		return core.VerifyResponse{}, core.NewError(Name, "verify", err)
 	}
 	switch out.Result {
-	case resultSuccess, resultAlreadyVerified:
+	case resultSuccess:
+	case resultAlreadyVerified:
+		// Zibal omits the reference number and the amount on this answer, so
+		// there is nothing to report as a settlement even if the caller wanted
+		// to treat it as one.
+		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrAlreadyVerified).
+			WithCode(strconv.Itoa(out.Result)).WithMessage(out.Message)
 	default:
 		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrPaymentFailed).
 			WithCode(strconv.Itoa(out.Result)).WithMessage(out.Message)

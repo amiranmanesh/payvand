@@ -203,7 +203,13 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 	}
 
 	switch out.Data.Code {
-	case codeSuccess, codeAlreadyVerified:
+	case codeSuccess:
+	case codeAlreadyVerified:
+		// The payment is settled, but by an earlier call. A caller that ships
+		// on every clean verification would otherwise ship again for a
+		// refreshed callback page.
+		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrAlreadyVerified).
+			WithCode(strconv.Itoa(out.Data.Code)).WithMessage(out.Data.Message)
 	default:
 		code, message := errorMessage(out.Errors)
 		if code == "" {

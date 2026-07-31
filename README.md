@@ -541,6 +541,13 @@ case errors.Is(err, payvand.ErrPaymentFailed):
 | `ErrAmountMismatch` | the settled amount differs from the requested one |
 | `ErrUnexpectedResponse` | the provider answered with something unreadable |
 
+Both of the first two are worth handling explicitly. `ErrAlreadyVerified` is
+what a refreshed callback page looks like on every gateway whose provider
+signals it, so treat it as "already paid" rather than as a failure — never as a
+reason to fulfil the order a second time. `ErrAmountMismatch` means the payment
+settled for something other than what was ordered, which is the shape a replayed
+token takes: stop, and reconcile by hand.
+
 Gateways that publish a code table expose it as a function — `mellat.Message`,
 `irankish.Message`, `saman.Message`, `nextpay.Message`, `bitpay.Message` — with
 English texts.

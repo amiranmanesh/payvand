@@ -27,6 +27,9 @@ type order struct {
 	Amount payvand.Money
 	Token  string
 	Status string
+	// Reference is the bank reference number, kept so a refreshed callback can
+	// be answered without verifying the payment again.
+	Reference string
 }
 
 // shop holds the gateway and the orders.
@@ -120,25 +123,55 @@ func (s *shop) finishPayment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !callback.Succeeded {
-		record.Status = "canceled"
+		s.setStatus(record, "canceled")
 		http.Error(w, "the payer canceled the payment", http.StatusPaymentRequired)
 		return
 	}
 
+	// The amount comes from the order, never from the callback: the browser
+	// carried that request and could have rewritten every field in it.
 	verified, err := s.gateway.Verify(r.Context(), callback.VerifyRequest(record.Amount))
 	switch {
 	case errors.Is(err, payvand.ErrAlreadyVerified):
-		// A refreshed callback page is normal; the order is already paid.
+		// A refreshed callback page is normal; the order is already paid, and
+		// the goods must not be shipped a second time. The provider tells us
+		// nothing else about the payment here, so the receipt is written from
+		// what was stored the first time round.
+		s.mu.Lock()
+		reference := record.Reference
+		s.mu.Unlock()
+		writeReceipt(w, record.ID, reference, "")
+		return
+	case errors.Is(err, payvand.ErrAmountMismatch):
+		// The payment settled for something other than what was ordered.
+		s.setStatus(record, "mismatch")
+		http.Error(w, "the settled amount does not match the order", http.StatusPaymentRequired)
+		return
 	case err != nil:
-		record.Status = "failed"
+		s.setStatus(record, "failed")
 		http.Error(w, "the payment could not be verified: "+err.Error(), http.StatusPaymentRequired)
 		return
 	}
 
-	record.Status = "paid"
+	s.mu.Lock()
+	record.Status, record.Reference = "paid", verified.ReferenceNumber
+	s.mu.Unlock()
+
+	writeReceipt(w, record.ID, verified.ReferenceNumber, verified.CardNumber)
+}
+
+// setStatus records the outcome of a payment under the shop's lock, which the
+// callback handler shares with the checkout handler.
+func (s *shop) setStatus(record *order, status string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record.Status = status
+}
+
+// writeReceipt answers the payer with what the shop knows about the payment.
+func writeReceipt(w http.ResponseWriter, orderID, reference, card string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	fmt.Fprintf(w, "order %s paid\nreference number: %s\ncard: %s\n",
-		record.ID, verified.ReferenceNumber, verified.CardNumber)
+	fmt.Fprintf(w, "order %s paid\nreference number: %s\ncard: %s\n", orderID, reference, card)
 }
 
 // env reads an environment variable with a fallback.

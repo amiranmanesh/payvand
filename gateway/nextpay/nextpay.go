@@ -178,7 +178,10 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		return core.VerifyResponse{}, core.NewError(Name, "verify", err)
 	}
 	switch out.Code {
-	case codeVerified, codeAlreadyVerified:
+	case codeVerified:
+	case codeAlreadyVerified:
+		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrAlreadyVerified).
+			WithCode(strconv.Itoa(out.Code)).WithMessage(Message(out.Code))
 	default:
 		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrPaymentFailed).
 			WithCode(strconv.Itoa(out.Code)).WithMessage(Message(out.Code))

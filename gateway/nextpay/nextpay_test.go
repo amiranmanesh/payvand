@@ -158,3 +158,15 @@ func TestParseCallback(t *testing.T) {
 		t.Fatalf("callback = %+v", callback)
 	}
 }
+
+func TestVerifyReportsAlreadyVerified(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/nx/gateway/verify": testutil.JSON(`{"code":-49,"amount":150000}`),
+	})
+	gw, _ := nextpay.New(core.Config{MerchantKey: "k"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "trans-1", Amount: core.Rial(150_000)})
+	if !errors.Is(err, core.ErrAlreadyVerified) {
+		t.Fatalf("error = %v, want ErrAlreadyVerified", err)
+	}
+}

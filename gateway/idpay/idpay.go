@@ -157,7 +157,12 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		return core.VerifyResponse{}, core.NewError(Name, "verify", err)
 	}
 	switch out.Status {
-	case statusVerified, statusAlreadyVerified, statusSettled:
+	case statusVerified, statusSettled:
+	case statusAlreadyVerified:
+		// IDPay's own documentation calls this the double spending signal: the
+		// order was verified before and must not be fulfilled twice.
+		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrAlreadyVerified).
+			WithCode(strconv.Itoa(out.Status))
 	default:
 		return core.VerifyResponse{}, gatewayError("verify", res.Body).
 			WithCode(strconv.Itoa(out.Status))

@@ -180,3 +180,15 @@ func TestSandboxForcesTestMerchant(t *testing.T) {
 		t.Fatalf("merchant = %q, want the sandbox merchant", sent.Merchant)
 	}
 }
+
+func TestVerifyReportsAlreadyVerified(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/v1/verify": testutil.JSON(`{"result":201,"message":"قبلا تایید شده"}`),
+	})
+	gw, _ := zibal.New(core.Config{MerchantKey: "m"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "3355", Amount: core.Rial(150_000)})
+	if !errors.Is(err, core.ErrAlreadyVerified) {
+		t.Fatalf("error = %v, want ErrAlreadyVerified", err)
+	}
+}
