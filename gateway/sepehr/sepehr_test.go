@@ -87,16 +87,45 @@ func TestVerifyUsesDigitalReceipt(t *testing.T) {
 	}
 }
 
-func TestVerifyAcceptsDuplicate(t *testing.T) {
+func TestVerifyReportsDuplicateAsAlreadyVerified(t *testing.T) {
 	server := testutil.NewServer(t, testutil.Routes{
 		"/V1/PeymentApi/Advice": testutil.JSON(`{"Status":"Duplicate","ReturnId":"12345"}`),
 	})
 	gw, _ := sepehr.New(core.Config{TerminalID: "9999"}, core.WithBaseURL(server.URL))
 
-	if _, err := gw.Verify(context.Background(), core.VerifyRequest{
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{
 		Token: "receipt-1", Amount: core.Rial(1000),
-	}); err != nil {
-		t.Fatalf("Verify() error = %v, want a duplicate advice to succeed", err)
+	})
+	if !errors.Is(err, core.ErrAlreadyVerified) {
+		t.Fatalf("error = %v, want ErrAlreadyVerified", err)
+	}
+}
+
+func TestVerifyRejectsAReceiptForAnotherInvoice(t *testing.T) {
+	gw, _ := sepehr.New(core.Config{TerminalID: "9999"}, core.WithBaseURL("https://example.invalid"))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{
+		Token:   "receipt-1",
+		OrderID: "1001",
+		Amount:  core.Rial(1000),
+		Extra:   map[string]string{"digitalreceipt": "receipt-1", "invoiceid": "2002"},
+	})
+	if !errors.Is(err, core.ErrInvalidRequest) {
+		t.Fatalf("error = %v, want ErrInvalidRequest", err)
+	}
+}
+
+func TestVerifyRejectsAReceiptForAnotherAmount(t *testing.T) {
+	gw, _ := sepehr.New(core.Config{TerminalID: "9999"}, core.WithBaseURL("https://example.invalid"))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{
+		Token:   "receipt-1",
+		OrderID: "1001",
+		Amount:  core.Rial(1_000_000),
+		Extra:   map[string]string{"digitalreceipt": "receipt-1", "invoiceid": "1001", "amount": "1000"},
+	})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
 	}
 }
 
