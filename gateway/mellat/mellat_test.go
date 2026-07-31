@@ -169,3 +169,65 @@ func TestParseCallback(t *testing.T) {
 		t.Errorf("card = %q", callback.CardNumber)
 	}
 }
+
+func TestVerifySettlesAfterAnAlreadyVerifiedTransaction(t *testing.T) {
+	var actions []string
+	server := testutil.NewServer(t, testutil.Routes{
+		// 43: an earlier verify went through and its answer was lost. Mellat
+		// still reverses the transaction unless it is settled.
+		"/pgwchannel/services/pgw": soapService(t, &actions, "43", "0"),
+	})
+	gw := newGateway(t, server.URL)
+
+	res, err := gw.Verify(context.Background(), core.VerifyRequest{
+		Token:           "3F2504E0",
+		OrderID:         "1001",
+		ReferenceNumber: "9911",
+		Amount:          core.Rial(150_000),
+	})
+	if err != nil {
+		t.Fatalf("Verify() error = %v, want the retry to settle", err)
+	}
+	if len(actions) != 2 || actions[1] != "bpSettleRequest" {
+		t.Fatalf("actions = %v, want the settle call to follow", actions)
+	}
+	if res.ReferenceNumber != "9911" {
+		t.Errorf("reference = %q", res.ReferenceNumber)
+	}
+}
+
+func TestVerifyReportsAFullySettledTransaction(t *testing.T) {
+	var actions []string
+	server := testutil.NewServer(t, testutil.Routes{
+		"/pgwchannel/services/pgw": soapService(t, &actions, "43", "45"),
+	})
+	gw := newGateway(t, server.URL)
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{
+		Token:           "3F2504E0",
+		OrderID:         "1001",
+		ReferenceNumber: "9911",
+		Amount:          core.Rial(150_000),
+	})
+	if !errors.Is(err, core.ErrAlreadyVerified) {
+		t.Fatalf("error = %v, want ErrAlreadyVerified", err)
+	}
+}
+
+func TestInquiryReportsAVerifiedTransaction(t *testing.T) {
+	var actions []string
+	server := testutil.NewServer(t, testutil.Routes{
+		"/pgwchannel/services/pgw": soapService(t, &actions, "43"),
+	})
+	gw := newGateway(t, server.URL)
+
+	res, err := gw.Inquiry(context.Background(), core.InquiryRequest{
+		OrderID: "1001", ReferenceNumber: "9911",
+	})
+	if err != nil {
+		t.Fatalf("Inquiry() error = %v", err)
+	}
+	if res.Status != core.StatusPaid {
+		t.Fatalf("status = %v, want paid", res.Status)
+	}
+}
