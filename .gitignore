@@ -1,0 +1,44 @@
+# Binaries and build output
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Coverage and profiling
+coverage.out
+coverage.html
+*.prof
+*.cpu
+*.mem
+
+# Go workspace and module cache artefacts
+go.work
+go.work.sum
+vendor/
+
+# Editors and tooling
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Local configuration that may carry terminal credentials
+.env
+.env.*
+!.env.example
+*.local.yaml
+*.local.yml
+*.local.json
+
+# Terminal keys and certificates — never commit these
+*.pem
+*.key
+*.p12
+*.pfx
+keys/
