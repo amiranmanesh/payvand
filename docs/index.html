@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payvand — one Go interface for every Iranian payment gateway</title>
+<meta name="description" content="Payvand is a dependency-free Go package that puts twenty Iranian internet payment gateways behind a single interface: purchase, verify, refund, inquiry and callback parsing.">
+<meta property="og:title" content="Payvand">
+<meta property="og:description" content="One Go interface for every Iranian payment gateway. Zero dependencies.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔗</text></svg>">
+<style>
+  :root {
+    --bg: #fbfbfd;
+    --bg-soft: #ffffff;
+    --bg-code: #f4f5f8;
+    --fg: #16181d;
+    --fg-soft: #575c66;
+    --line: #e3e5ea;
+    --accent: #0f766e;
+    --accent-soft: #ecfdf5;
+    --yes: #0f766e;
+    --no: #a1a5ad;
+    --radius: 14px;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d0f13;
+      --bg-soft: #14171d;
+      --bg-code: #161a21;
+      --fg: #e8eaee;
+      --fg-soft: #9aa1ad;
+      --line: #262b34;
+      --accent: #2dd4bf;
+      --accent-soft: #10231f;
+      --yes: #2dd4bf;
+      --no: #575c66;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: var(--mono); font-size: 0.9em; }
+
+  /* header */
+  header { border-bottom: 1px solid var(--line); background: var(--bg-soft); }
+  .nav { display: flex; align-items: center; gap: 22px; height: 62px; }
+  .brand { font-weight: 700; letter-spacing: -0.02em; font-size: 1.05rem; margin-right: auto; }
+  .brand span { color: var(--accent); }
+  .nav a { color: var(--fg-soft); font-size: 0.92rem; }
+  .nav a:hover { color: var(--fg); text-decoration: none; }
+  @media (max-width: 640px) { .nav { gap: 14px; height: auto; padding: 14px 0; flex-wrap: wrap; } }
+
+  /* hero */
+  .hero { padding: 76px 0 60px; text-align: center; }
+  .hero h1 { font-size: clamp(2.4rem, 6vw, 3.6rem); line-height: 1.1; margin: 0 0 6px; letter-spacing: -0.03em; }
+  .hero .fa { font-size: 1.1rem; color: var(--fg-soft); margin-bottom: 18px; }
+  .hero p.lead { font-size: 1.15rem; color: var(--fg-soft); max-width: 640px; margin: 0 auto 30px; }
+  .badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 28px; }
+  .badge {
+    font-size: 0.78rem; padding: 4px 11px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent); border: 1px solid var(--line);
+  }
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 11px 22px; border-radius: 10px; font-weight: 600; font-size: 0.95rem;
+    border: 1px solid var(--line); background: var(--bg-soft); color: var(--fg);
+  }
+  .btn:hover { text-decoration: none; border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #04120f; }
+  @media (prefers-color-scheme: dark) { .btn.primary { color: #04120f; } }
+
+  /* install line */
+  .install {
+    display: flex; align-items: center; gap: 10px; justify-content: space-between;
+    margin: 34px auto 0; max-width: 560px; padding: 12px 16px;
+    background: var(--bg-code); border: 1px solid var(--line); border-radius: 10px;
+    font-family: var(--mono); font-size: 0.88rem; text-align: left;
+  }
+  .install button {
+    font: inherit; font-size: 0.78rem; cursor: pointer; padding: 4px 10px;
+    border-radius: 6px; border: 1px solid var(--line); background: var(--bg-soft); color: var(--fg-soft);
+  }
+  .install button:hover { color: var(--fg); border-color: var(--accent); }
+
+  /* sections */
+  section { padding: 56px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 1.6rem; letter-spacing: -0.02em; margin: 0 0 8px; }
+  h2 + p.sub { color: var(--fg-soft); margin: 0 0 26px; }
+  h3 { font-size: 1.05rem; margin: 0 0 6px; }
+
+  /* feature grid */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--bg-soft); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px;
+  }
+  .card p { margin: 0; color: var(--fg-soft); font-size: 0.93rem; }
+
+  /* code */
+  pre {
+    background: var(--bg-code); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; overflow-x: auto; margin: 0 0 18px;
+  }
+  pre code { font-size: 0.86rem; line-height: 1.6; color: var(--fg); }
+  .cm { color: var(--fg-soft); }
+  .kw { color: var(--accent); }
+  .st { color: #b45309; }
+  @media (prefers-color-scheme: dark) { .st { color: #fbbf24; } }
+
+  /* table */
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-soft); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; min-width: 640px; }
+  th, td { padding: 9px 14px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-soft); }
+  tbody tr:last-child td { border-bottom: none; }
+  .y { color: var(--yes); font-weight: 600; }
+  .n { color: var(--no); }
+
+  /* steps */
+  ol.steps { padding-left: 20px; color: var(--fg-soft); }
+  ol.steps li { margin-bottom: 8px; }
+  ol.steps b { color: var(--fg); }
+
+  footer { border-top: 1px solid var(--line); padding: 34px 0 46px; color: var(--fg-soft); font-size: 0.88rem; }
+  footer .row { display: flex; gap: 18px; flex-wrap: wrap; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="brand">پیوند <span>Payvand</span></div>
+    <a href="#quickstart">Quick start</a>
+    <a href="#gateways">Gateways</a>
+    <a href="https://github.com/amiranmanesh/payvand/wiki">Wiki</a>
+    <a href="https://pkg.go.dev/github.com/amiranmanesh/payvand">API</a>
+    <a href="https://github.com/amiranmanesh/payvand">GitHub</a>
+  </div>
+</header>
+
+<div class="wrap hero">
+  <h1>One interface for every<br>Iranian payment gateway</h1>
+  <p class="lead">
+    Payvand puts twenty IPGs — bank acquirers, PSPs and aggregators — behind a
+    single Go interface. Switching provider is a value change, not a code change.
+  </p>
+  <div class="badges">
+    <span class="badge">20 gateways</span>
+    <span class="badge">zero dependencies</span>
+    <span class="badge">Go 1.26+</span>
+    <span class="badge">MIT</span>
+  </div>
+  <div class="cta">
+    <a class="btn primary" href="#quickstart">Get started</a>
+    <a class="btn" href="https://github.com/amiranmanesh/payvand">Source</a>
+    <a class="btn" href="https://github.com/amiranmanesh/payvand/wiki">Documentation</a>
+  </div>
+  <div class="install">
+    <span id="install-cmd">go get github.com/amiranmanesh/payvand</span>
+    <button id="copy">copy</button>
+  </div>
+</div>
+
+<section id="why">
+  <div class="wrap">
+    <h2>Why</h2>
+    <p class="sub">Payment code should outlive the payment provider.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>Zero dependencies</h3>
+        <p>Nothing but the Go standard library. The SOAP client, the 3DES and RSA envelopes and the retrying HTTP client are all built in — and CI fails if a dependency ever appears.</p>
+      </div>
+      <div class="card">
+        <h3>One interface</h3>
+        <p><code>Purchase</code>, <code>Verify</code>, <code>Refund</code>, <code>Inquiry</code>, <code>ParseCallback</code>. Same signatures for Zarinpal and for a Shaparak acquirer.</p>
+      </div>
+      <div class="card">
+        <h3>Capability aware</h3>
+        <p>Ask <code>Capabilities()</code> instead of hard-coding which provider can refund. Unsupported operations answer <code>ErrNotSupported</code>, never a surprise.</p>
+      </div>
+      <div class="card">
+        <h3>Amount safety</h3>
+        <p><code>Toman(15_000)</code> and <code>Rial(150_000)</code> are the same money. Each gateway converts to whatever unit its own API expects.</p>
+      </div>
+      <div class="card">
+        <h3>Callbacks normalised</h3>
+        <p>Query strings, POST forms and the casing drift between PSPs collapse into one <code>Callback</code> struct that feeds the verification directly.</p>
+      </div>
+      <div class="card">
+        <h3>Testable offline</h3>
+        <p>Every gateway honours <code>WithBaseURL</code>, and a virtual in-memory gateway runs the whole purchase-to-refund cycle with no network and no credentials.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="quickstart">
+  <div class="wrap">
+    <h2>Quick start</h2>
+    <p class="sub">Create the payment, send the payer, verify what comes back.</p>
+<pre><code><span class="cm">// 1. Initialise once, with the settings shared by the application.</span>
+pv := payvand.<span class="kw">Init</span>(payvand.WithTimeout(20 * time.Second))
+
+<span class="cm">// 2. Build the gateway of the terminal you charge on.</span>
+gw, err := pv.<span class="kw">Gateway</span>(payvand.Zarinpal, payvand.Config{
+    MerchantKey: merchantID,
+})
+
+<span class="cm">// 3. Create the payment and send the payer to the bank.</span>
+purchase, err := gw.<span class="kw">Purchase</span>(ctx, payvand.PurchaseRequest{
+    Amount:      payvand.Toman(<span class="st">15_000</span>),
+    OrderID:     <span class="st">"1001"</span>,
+    CallbackURL: <span class="st">"https://shop.example/payments/callback"</span>,
+})
+purchase.Redirect.<span class="kw">Send</span>(w, r)  <span class="cm">// 303, or an auto-posting form — the gateway decides</span>
+</code></pre>
+
+<pre><code><span class="cm">// 4. The payer returns. This handler never changes when the provider does.</span>
+cb, err := gw.<span class="kw">ParseCallback</span>(r)
+<span class="kw">if</span> err != <span class="kw">nil</span> || !cb.Succeeded {
+    http.Error(w, <span class="st">"payment canceled"</span>, http.StatusPaymentRequired)
+    <span class="kw">return</span>
+}
+
+order := orders.ByToken(cb.Token)
+
+<span class="cm">// The amount comes from your records, never from the browser.</span>
+verified, err := gw.<span class="kw">Verify</span>(ctx, cb.VerifyRequest(order.Amount))
+</code></pre>
+    <p style="color:var(--fg-soft);margin:0">
+      Swapping <code>payvand.Zarinpal</code> for <code>payvand.Mellat</code>,
+      <code>payvand.Parsian</code> or <code>payvand.Virtual</code> changes the
+      first call and nothing else.
+      <a href="https://github.com/amiranmanesh/payvand/wiki/Getting-Started">Full guide →</a>
+    </p>
+  </div>
+</section>
+
+<section id="gateways">
+  <div class="wrap">
+    <h2>Supported gateways</h2>
+    <p class="sub">All twenty are implemented and covered by tests.</p>
+    <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>Gateway</th><th>Constant</th><th>Kind</th><th>Verify</th><th>Refund</th><th>Inquiry</th><th>Callback</th><th>Split</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Zarinpal</td><td><code>Zarinpal</code></td><td>REST</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
+        <tr><td>Zibal</td><td><code>Zibal</code></td><td>REST</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
+        <tr><td>Vandar</td><td><code>Vandar</code></td><td>REST</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>PayWeb</td><td><code>PayWeb</code></td><td>REST</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>IDPay</td><td><code>IDPay</code></td><td>REST</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>Pay.ir</td><td><code>PayIr</code></td><td>REST</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>NextPay</td><td><code>NextPay</code></td><td>REST</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>PayPing</td><td><code>PayPing</code></td><td>REST</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>BitPay.ir</td><td><code>BitPay</code></td><td>REST</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>YekPay</td><td><code>YekPay</code></td><td>REST</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>Sadad · Bank Melli</td><td><code>Sadad</code></td><td>REST + 3DES</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>Parsian</td><td><code>Parsian</code></td><td>SOAP</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="y">✓</td></tr>
+        <tr><td>Iran Kish</td><td><code>IranKish</code></td><td>REST + RSA/AES</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>Mellat · Behpardakht</td><td><code>Mellat</code></td><td>SOAP</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>Saman · SEP</td><td><code>Saman</code></td><td>REST</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>Pasargad</td><td><code>Pasargad</code></td><td>REST + RSA sign</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>AsanPardakht</td><td><code>AsanPardakht</code></td><td>REST v1</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
+        <tr><td>Sepehr · Bank Saderat</td><td><code>Sepehr</code></td><td>REST</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>TOP</td><td><code>Top</code></td><td>REST, in-app</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+        <tr><td>Virtual</td><td><code>Virtual</code></td><td>in-memory</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p style="color:var(--fg-soft);font-size:0.88rem;margin-top:14px">
+      — means the provider offers no such API to merchants; the call returns
+      <code>ErrNotSupported</code> and <code>Capabilities()</code> says so up front.
+    </p>
+  </div>
+</section>
+
+<section id="flow">
+  <div class="wrap">
+    <h2>The flow</h2>
+    <p class="sub">Identical for every provider, including the ones that need an extra settlement call.</p>
+    <ol class="steps">
+      <li><b>Purchase</b> — the provider issues a token; persist it next to the order.</li>
+      <li><b>Redirect</b> — <code>Redirect.Send</code> emits a 303 or an auto-submitting form, whichever the bank requires.</li>
+      <li><b>Callback</b> — <code>ParseCallback</code> normalises whatever the bank posts or appends.</li>
+      <li><b>Verify</b> — mandatory: an unverified transaction is reversed by most Iranian gateways. Mellat, AsanPardakht, Vandar and Pasargad need several calls here, and Payvand makes them for you.</li>
+      <li><b>Refund or inquiry</b> — where the provider supports them, behind the same interface.</li>
+    </ol>
+  </div>
+</section>
+
+<section id="docs">
+  <div class="wrap">
+    <h2>Documentation</h2>
+    <p class="sub">Guides in the wiki, the full reference on pkg.go.dev.</p>
+    <div class="grid">
+      <div class="card">
+        <h3><a href="https://github.com/amiranmanesh/payvand/wiki/Getting-Started">Getting started</a></h3>
+        <p>Install, the first payment, the callback handler and the mistakes worth avoiding.</p>
+      </div>
+      <div class="card">
+        <h3><a href="https://github.com/amiranmanesh/payvand/wiki/Configuration">Configuration</a></h3>
+        <p>Which credential goes in which <code>Config</code> field, per gateway.</p>
+      </div>
+      <div class="card">
+        <h3><a href="https://github.com/amiranmanesh/payvand/wiki/Options">Options</a></h3>
+        <p>The shared transport options and every provider specific switch.</p>
+      </div>
+      <div class="card">
+        <h3><a href="https://github.com/amiranmanesh/payvand/wiki/Testing">Testing</a></h3>
+        <p>The virtual gateway, fake provider servers and the failure paths worth covering.</p>
+      </div>
+      <div class="card">
+        <h3><a href="https://github.com/amiranmanesh/payvand/wiki/Migration-Guide">Migration</a></h3>
+        <p>Moving a hand written <code>GetToken</code> / <code>Confirm</code> layer onto Payvand, one adapter at a time.</p>
+      </div>
+      <div class="card">
+        <h3><a href="https://pkg.go.dev/github.com/amiranmanesh/payvand">API reference</a></h3>
+        <p>Every type, function and option, generated from the source.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap row">
+    <div>MIT licensed · built on the Go standard library alone</div>
+    <div>
+      <a href="https://github.com/amiranmanesh/payvand">GitHub</a> ·
+      <a href="https://github.com/amiranmanesh/payvand/blob/main/CHANGELOG.md">Changelog</a> ·
+      <a href="https://github.com/amiranmanesh/payvand/wiki">Wiki</a> ·
+      <a href="https://pkg.go.dev/github.com/amiranmanesh/payvand">pkg.go.dev</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('copy').addEventListener('click', function () {
+    var text = document.getElementById('install-cmd').textContent;
+    navigator.clipboard.writeText(text).then(function () {
+      var button = document.getElementById('copy');
+      button.textContent = 'copied';
+      setTimeout(function () { button.textContent = 'copy'; }, 1600);
+    });
+  });
+</script>
+
+</body>
+</html>
