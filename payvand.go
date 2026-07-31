@@ -51,8 +51,10 @@ import (
 	// from configuration or from a database row.
 	"github.com/amiranmanesh/payvand/gateway/asanpardakht"
 	"github.com/amiranmanesh/payvand/gateway/bitpay"
+	"github.com/amiranmanesh/payvand/gateway/digipay"
 	"github.com/amiranmanesh/payvand/gateway/idpay"
 	"github.com/amiranmanesh/payvand/gateway/irankish"
+	"github.com/amiranmanesh/payvand/gateway/jibit"
 	"github.com/amiranmanesh/payvand/gateway/mellat"
 	"github.com/amiranmanesh/payvand/gateway/nextpay"
 	"github.com/amiranmanesh/payvand/gateway/parsian"
@@ -63,7 +65,10 @@ import (
 	"github.com/amiranmanesh/payvand/gateway/sadad"
 	"github.com/amiranmanesh/payvand/gateway/saman"
 	"github.com/amiranmanesh/payvand/gateway/sepehr"
+	"github.com/amiranmanesh/payvand/gateway/snapppay"
+	"github.com/amiranmanesh/payvand/gateway/tara"
 	"github.com/amiranmanesh/payvand/gateway/top"
+	"github.com/amiranmanesh/payvand/gateway/torobpay"
 	"github.com/amiranmanesh/payvand/gateway/vandar"
 	"github.com/amiranmanesh/payvand/gateway/virtual"
 	"github.com/amiranmanesh/payvand/gateway/yekpay"
@@ -77,10 +82,14 @@ const (
 	AsanPardakht = asanpardakht.Name
 	// BitPay is the BitPay.ir aggregator.
 	BitPay = bitpay.Name
+	// DigiPay is the Digipay wallet, credit and BNPL gateway.
+	DigiPay = digipay.Name
 	// IDPay is the IDPay PSP.
 	IDPay = idpay.Name
 	// IranKish is the Iran Kish acquirer (Bank Kar Afarin group).
 	IranKish = irankish.Name
+	// Jibit is the Jibit proxy payment gateway.
+	Jibit = jibit.Name
 	// Mellat is the Behpardakht Mellat acquirer.
 	Mellat = mellat.Name
 	// NextPay is the NextPay PSP.
@@ -101,8 +110,14 @@ const (
 	Saman = saman.Name
 	// Sepehr is the Sepehr / Bank Saderat (Mabna) acquirer.
 	Sepehr = sepehr.Name
+	// SnappPay is the SnappPay online instalment (BNPL) gateway.
+	SnappPay = snapppay.Name
+	// Tara is the Tara club credit gateway.
+	Tara = tara.Name
 	// Top is the TOP (Taban Ati Pardaz) in-app gateway.
 	Top = top.Name
+	// TorobPay is the TorobPay online credit (BNPL) gateway.
+	TorobPay = torobpay.Name
 	// Vandar is the Vandar PSP.
 	Vandar = vandar.Name
 	// Virtual is the in-memory gateway used for development and tests.

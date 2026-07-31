@@ -23,9 +23,10 @@ func checkout(ctx context.Context, gw payvand.Gateway, amount payvand.Money) (pa
 
 func TestEveryGatewayIsRegistered(t *testing.T) {
 	want := []payvand.Name{
-		payvand.AsanPardakht, payvand.BitPay, payvand.IDPay, payvand.IranKish, payvand.Mellat,
-		payvand.NextPay, payvand.Parsian, payvand.Pasargad, payvand.PayIr, payvand.PayPing,
-		payvand.PayWeb, payvand.Sadad, payvand.Saman, payvand.Sepehr, payvand.Top,
+		payvand.AsanPardakht, payvand.BitPay, payvand.DigiPay, payvand.IDPay, payvand.IranKish,
+		payvand.Jibit, payvand.Mellat, payvand.NextPay, payvand.Parsian, payvand.Pasargad,
+		payvand.PayIr, payvand.PayPing, payvand.PayWeb, payvand.Sadad, payvand.Saman,
+		payvand.Sepehr, payvand.SnappPay, payvand.Tara, payvand.Top, payvand.TorobPay,
 		payvand.Vandar, payvand.Virtual, payvand.YekPay, payvand.Zarinpal, payvand.Zibal,
 	}
 	for _, name := range want {
@@ -86,6 +87,9 @@ func TestCapabilitiesDescribeTheProvider(t *testing.T) {
 		payvand.Zarinpal: {refund: false, callback: true},
 		payvand.Mellat:   {refund: true, callback: true},
 		payvand.Top:      {refund: false, callback: false},
+		payvand.Jibit:    {refund: true, callback: true},
+		payvand.SnappPay: {refund: true, callback: true},
+		payvand.Tara:     {refund: false, callback: true},
 	}
 
 	for name, want := range cases {
@@ -98,6 +102,38 @@ func TestCapabilitiesDescribeTheProvider(t *testing.T) {
 		got := gw.Capabilities()
 		if got.Refund != want.refund || got.Callback != want.callback {
 			t.Errorf("%q capabilities = %+v, want refund=%v callback=%v", name, got, want.refund, want.callback)
+		}
+	}
+}
+
+// TestBuyNowPayLaterUsesTheSameCallSite proves that the instalment providers,
+// whose protocols are nothing like a card gateway's, are still reached through
+// the same three lines an application already writes for Zarinpal or Mellat.
+func TestBuyNowPayLaterUsesTheSameCallSite(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/online/v1/oauth/token", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"access_token":"access","expires_in":3600}`))
+	})
+	mux.HandleFunc("/api/online/payment/v1/token", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"successful":true,"response":{"paymentToken":"pt-1","paymentPageUrl":"https://pay"}}`))
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	credentials := payvand.Config{
+		Username: "u", Password: "p", MerchantID: "client", MerchantKey: "secret",
+	}
+	for _, name := range []payvand.Name{payvand.SnappPay, payvand.TorobPay} {
+		gw, err := payvand.New(name, credentials, payvand.WithBaseURL(server.URL))
+		if err != nil {
+			t.Fatalf("New(%q) error = %v", name, err)
+		}
+		res, err := checkout(context.Background(), gw, payvand.Toman(150_000))
+		if err != nil {
+			t.Fatalf("checkout with %q error = %v", name, err)
+		}
+		if res.Token != "pt-1" {
+			t.Errorf("gateway %q returned token %q", name, res.Token)
 		}
 	}
 }

@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/amiranmanesh/payvand"
+	"github.com/amiranmanesh/payvand/gateway/jibit"
 	"github.com/amiranmanesh/payvand/gateway/parsian"
+	"github.com/amiranmanesh/payvand/gateway/snapppay"
 	"github.com/amiranmanesh/payvand/gateway/zarinpal"
 )
 
@@ -43,6 +45,21 @@ func main() {
 		{
 			Gateway: payvand.Mellat,
 			Config:  payvand.Config{TerminalID: "1234567", Username: "user", Password: "pass"},
+		},
+		{
+			// A buy-now-pay-later provider is wired exactly like the others;
+			// only the basket builder is specific to it.
+			Gateway: payvand.SnappPay,
+			Config: payvand.Config{
+				Username: "merchant", Password: "pass",
+				MerchantID: "client-id", MerchantKey: "client-secret",
+			},
+			Options: []payvand.Option{snapppay.WithDefaultCategory("DIGITAL")},
+		},
+		{
+			Gateway: payvand.Jibit,
+			Config:  payvand.Config{MerchantKey: "api-key", Password: "secret-key"},
+			Options: []payvand.Option{jibit.WithDefaultDescription("Wallet top-up")},
 		},
 	}
 
