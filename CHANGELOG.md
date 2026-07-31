@@ -6,7 +6,72 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing yet.
+A security and money-safety pass over every gateway. Two changes alter what
+`Verify` returns for flows that used to look successful; both are listed under
+Changed, and both were returning success for something that was not one.
+
+### Security
+
+- **AsanPardakht settled an unpaid order.** `Verify` let
+  `VerifyRequest.Extra["pay_gate_tran_id"]` replace the transaction id it had
+  just looked up, and `Callback.VerifyRequest` copies the whole callback map
+  into `Extra` — so returning to the callback URL with any transaction id
+  marked the order paid. The provider lookup is now the only source of the
+  settlement key; a supplied value is cross-checked and reported when it
+  disagrees.
+- **Sepehr settled any receipt against any order.** A "Duplicate" advice —
+  the receipt was settled by an earlier call — was read as success, so a
+  receipt from a cheap payment settled an expensive order. It is
+  `ErrAlreadyVerified` now, and verification also checks the invoice and amount
+  the callback claimed against the caller's own record.
+- **Terminal credentials reached the logs.** Iranian gateways authenticate on
+  the request body, and the whole body went into the log fields — including on
+  the error path, which fires on any network failure. Credential fields are
+  masked in both directions now. `Raw` and `Extra` are deliberately untouched;
+  `SECURITY.md` says which is which.
+- **Callback values went into URLs unescaped.** Jibit's purchase id and
+  Digipay's tracking code both arrive from the payer's browser and were
+  concatenated into request URLs, where a `?` or a `../` re-targets the call.
+  These, and Vandar's refund path, are escaped.
+- **Refunds were replayed by the retry policy.** `WithRetry` applied to every
+  call, so a reversal that lost its answer to a timeout was sent again. Refunds
+  and reversals now attempt exactly once.
+
+### Fixed
+
+- Sixteen gateways adopted the amount the provider reported instead of checking
+  it against the amount that was ordered, so a token replayed from a cheaper
+  payment verified cleanly. They reconcile through the new `SettledAmount`, and
+  SnappPay does it before settling rather than after.
+- NextPay reported every successful refund as a failure: the refund answers
+  with -90, not with the verify success code.
+- Zibal reported a paid-but-unverified transaction as verified, so a merchant
+  recovering a lost callback never made the call that keeps the money.
+- Mellat aborted a retried verification before the settle call, which is the
+  call that keeps the money; its inquiry reported live transactions as failed.
+- Vandar's settled amount arrives as a decimal string and was silently dropped
+  by an integer parse.
+- PayWeb decided a verification from the HTTP status alone.
+- YekPay never reported the settled amount at all.
+
+### Added
+
+- `payvand.SettledAmount` — the settled-versus-ordered comparison every
+  `Verify` now performs, exported for the same check against an inquiry.
+- `Money.Equal`, which compares worth across Rial and Toman.
+- `torobpay.WithSettle` — TorobPay serves the same endpoint paths as SnappPay,
+  where an unsettled payment is reverted, and its documentation is not public.
+  The call is available and off by default; ask the provider which your
+  contract is.
+
+### Changed
+
+- Gateways whose provider signals a repeated verification — Zarinpal, Zibal,
+  IDPay, BitPay, NextPay, Sepehr, Mellat — return an error wrapping
+  `ErrAlreadyVerified` instead of a fresh success. Treat it as "already paid";
+  the point is that the order is not fulfilled twice.
+- `Verify` returns `ErrAmountMismatch` where it used to return the provider's
+  amount and no error.
 
 ## [1.1.0] — 2026-07-31
 
