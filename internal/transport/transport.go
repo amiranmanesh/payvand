@@ -171,7 +171,7 @@ func (c *Client) do(ctx context.Context, method, endpoint string, body []byte, h
 		req.Header.Set("User-Agent", c.opts.UserAgent)
 	}
 
-	fields := map[string]string{"method": method, "url": endpoint, "request": truncate(string(body))}
+	fields := map[string]string{"method": method, "url": endpoint, "request": truncate(redact(string(body)))}
 	started := time.Now()
 
 	res, err := c.doer.Do(req)
@@ -189,7 +189,7 @@ func (c *Client) do(ctx context.Context, method, endpoint string, body []byte, h
 
 	fields["status"] = strconv.Itoa(res.StatusCode)
 	fields["duration_ms"] = strconv.FormatInt(time.Since(started).Milliseconds(), 10)
-	fields["response"] = truncate(string(raw))
+	fields["response"] = truncate(redact(string(raw)))
 	c.opts.Logger.Debug(ctx, "payvand: gateway call", fields)
 
 	return Response{StatusCode: res.StatusCode, Body: string(raw), Header: res.Header}, nil
