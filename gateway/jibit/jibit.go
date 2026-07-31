@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -202,7 +203,7 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithMessage("token (purchase id) is required")
 	}
 
-	endpoint := transport.JoinURL(g.baseURL, purchasesPath+"/"+req.Token+"/verify")
+	endpoint := transport.JoinURL(g.baseURL, purchasesPath+"/"+url.PathEscape(req.Token)+"/verify")
 
 	var out verifyResponse
 	res, err := g.authorized(ctx, http.MethodPost, endpoint, nil, &out)
@@ -328,9 +329,9 @@ func (g *Gateway) Inquiry(ctx context.Context, req core.InquiryRequest) (core.In
 	query := ""
 	switch {
 	case req.Token != "":
-		query = "?purchaseId=" + req.Token
+		query = "?purchaseId=" + url.QueryEscape(req.Token)
 	case req.OrderID != "":
-		query = "?clientReferenceNumber=" + req.OrderID
+		query = "?clientReferenceNumber=" + url.QueryEscape(req.OrderID)
 	default:
 		return core.InquiryResponse{}, core.NewError(Name, "inquiry", core.ErrInvalidRequest).
 			WithMessage("token (purchase id) or order id is required")

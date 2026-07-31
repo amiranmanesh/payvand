@@ -7,6 +7,7 @@ package vandar
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -223,7 +224,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 		headers["Authorization"] = "Bearer " + g.settings.accessToken
 	}
 	endpoint := transport.JoinURL(g.businessBase,
-		"/v3/business/"+g.cfg.MerchantID+"/transaction/"+transactionID+"/refund")
+		"/v3/business/"+url.PathEscape(g.cfg.MerchantID)+"/transaction/"+url.PathEscape(transactionID)+"/refund")
 
 	var out refundResponse
 	res, err := g.client.NoRetry().JSON(ctx, http.MethodPost, endpoint, refundRequest{

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -201,7 +202,7 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithMessage("tracking code is required")
 	}
 
-	endpoint := transport.JoinURL(g.baseURL, verifyPath+trackingCode) +
+	endpoint := transport.JoinURL(g.baseURL, verifyPath+url.PathEscape(trackingCode)) +
 		"?type=" + g.requestTicketType(req.Extra)
 
 	var out verifyResponse
@@ -358,7 +359,7 @@ func (g *Gateway) RefundStatus(ctx context.Context, refundID string, ticketType 
 			WithMessage("refund id is required")
 	}
 
-	endpoint := transport.JoinURL(g.baseURL, refundPath+"/"+refundID) + "?type=" + strconv.Itoa(ticketType)
+	endpoint := transport.JoinURL(g.baseURL, refundPath+"/"+url.PathEscape(refundID)) + "?type=" + strconv.Itoa(ticketType)
 	var out refundStatusResponse
 	res, err := g.auth.JSON(ctx, http.MethodPost, endpoint, nil, nil, &out)
 	if err != nil {
