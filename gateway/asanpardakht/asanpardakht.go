@@ -26,8 +26,14 @@ import (
 const Name core.Name = "asanpardakht"
 
 // PayGateTranIDKey is the key of the provider transaction id inside
-// [core.VerifyRequest.Extra] and [core.RefundRequest.Extra]. It is only needed
-// when the caller already knows it and wants to skip the lookup call.
+// [core.VerifyRequest.Extra] and [core.RefundRequest.Extra].
+//
+// Fill it from your own records only. [core.Gateway.Verify] looks the
+// transaction up from the invoice id and uses the supplied value solely to
+// cross-check that answer, because the callback map every [core.Callback]
+// carries reaches Extra unfiltered. [core.Gateway.Refund] does skip the lookup
+// when no order id is given, which makes the value the transaction to reverse:
+// never hand it one that came back from the payer's browser.
 const PayGateTranIDKey = "pay_gate_tran_id"
 
 // Provider endpoints. The API and the payment page live on different hosts.
@@ -178,16 +184,17 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 	if err != nil {
 		return core.VerifyResponse{}, err
 	}
-	if tranID := req.Get(PayGateTranIDKey); tranID != "" {
-		if parsed, convErr := strconv.ParseInt(tranID, 10, 64); convErr == nil {
-			result.PayGateTranID = parsed
-		}
+	if err := checkTranID(req.Get(PayGateTranIDKey), result.PayGateTranID, "verify"); err != nil {
+		return core.VerifyResponse{}, err
 	}
 	if result.PayGateTranID == 0 {
 		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrPaymentFailed).
 			WithMessage("the transaction was not found on the provider side")
 	}
-	if req.Amount.Rial() > 0 && result.Amount > 0 && result.Amount != req.Amount.Rial() {
+	// An invoice the provider knows always carries the amount it was paid for,
+	// so a zero here is an answer that cannot be settled against, not a reason
+	// to skip the comparison.
+	if req.Amount.Rial() > 0 && result.Amount != req.Amount.Rial() {
 		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrAmountMismatch).
 			WithMessage("the provider reported " + strconv.FormatInt(result.Amount, 10) + " Rial")
 	}
@@ -294,18 +301,24 @@ func (g *Gateway) tranResult(ctx context.Context, op, orderID string) (tranResul
 	return out, res, nil
 }
 
-// resolveTranID returns the provider transaction id, looking it up from the
-// local invoice id when the caller did not supply it.
+// resolveTranID returns the provider transaction id. An invoice id is resolved
+// through the provider, which then also settles what the caller supplied; a
+// bare transaction id is taken as given, since there is nothing to check it
+// against.
 func (g *Gateway) resolveTranID(ctx context.Context, op, orderID, known string) (int64, error) {
-	if known != "" {
-		if parsed, err := strconv.ParseInt(known, 10, 64); err == nil {
-			return parsed, nil
-		}
-	}
 	if orderID == "" {
-		return 0, core.NewError(Name, op, core.ErrInvalidRequest).
-			WithMessage("order id or payGateTranId is required")
+		if known == "" {
+			return 0, core.NewError(Name, op, core.ErrInvalidRequest).
+				WithMessage("order id or payGateTranId is required")
+		}
+		parsed, err := strconv.ParseInt(known, 10, 64)
+		if err != nil {
+			return 0, core.NewError(Name, op, core.ErrInvalidRequest).
+				WithMessage("payGateTranId must be numeric")
+		}
+		return parsed, nil
 	}
+
 	result, _, err := g.tranResult(ctx, op, orderID)
 	if err != nil {
 		return 0, err
@@ -314,7 +327,31 @@ func (g *Gateway) resolveTranID(ctx context.Context, op, orderID, known string) 
 		return 0, core.NewError(Name, op, core.ErrPaymentFailed).
 			WithMessage("the transaction was not found on the provider side")
 	}
+	if err := checkTranID(known, result.PayGateTranID, op); err != nil {
+		return 0, err
+	}
 	return result.PayGateTranID, nil
+}
+
+// checkTranID cross-checks a caller supplied payGateTranId against the one the
+// provider reports for the invoice.
+//
+// The supplied value is never used as the settlement key.
+// [core.Callback.VerifyRequest] copies the whole callback map into Extra, so
+// anything read from there is ultimately chosen by the payer's browser; letting
+// it name the transaction to settle would settle an order against a payment
+// that was never made for it. A value that disagrees with the provider is
+// reported instead of ignored, so a caller passing the wrong one finds out.
+func checkTranID(supplied string, found int64, op string) error {
+	if supplied == "" {
+		return nil
+	}
+	parsed, err := strconv.ParseInt(supplied, 10, 64)
+	if err != nil || parsed != found {
+		return core.NewError(Name, op, core.ErrInvalidRequest).
+			WithMessage("the supplied payGateTranId is not the transaction the provider reports for this invoice")
+	}
+	return nil
 }
 
 // command posts one of the verify/settle/cancel/reverse bodies.
