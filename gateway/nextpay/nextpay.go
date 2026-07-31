@@ -216,7 +216,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	}
 
 	var out verifyResponse
-	res, err := g.client.JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, verifyPath), verifyRequest{
+	res, err := g.client.NoRetry().JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, verifyPath), verifyRequest{
 		APIKey:        g.cfg.MerchantKey,
 		TransID:       token,
 		Amount:        g.amount(req.Amount),

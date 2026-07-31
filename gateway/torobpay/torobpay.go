@@ -283,13 +283,18 @@ func (g *Gateway) ParseCallback(r *http.Request) (core.Callback, error) {
 
 // call performs one of the paymentToken shaped POST endpoints.
 func (g *Gateway) call(ctx context.Context, op, path, paymentToken string) (verifyData, transport.Response, error) {
+	// Reverting money is not replayed: a lost answer must not send it twice.
+	auth := g.auth
+	if op == "refund" {
+		auth = auth.NoRetry()
+	}
 	if paymentToken == "" {
 		return verifyData{}, transport.Response{}, core.NewError(Name, op, core.ErrInvalidRequest).
 			WithMessage("payment token is required")
 	}
 
 	var out verifyResponse
-	res, err := g.auth.JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, path),
+	res, err := auth.JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, path),
 		paymentTokenRequest{PaymentToken: paymentToken}, nil, &out)
 	if err != nil {
 		return verifyData{}, res, core.NewError(Name, op, err)

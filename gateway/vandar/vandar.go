@@ -226,7 +226,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 		"/v3/business/"+g.cfg.MerchantID+"/transaction/"+transactionID+"/refund")
 
 	var out refundResponse
-	res, err := g.client.JSON(ctx, http.MethodPost, endpoint, refundRequest{
+	res, err := g.client.NoRetry().JSON(ctx, http.MethodPost, endpoint, refundRequest{
 		APIKey:        g.cfg.MerchantKey,
 		TransactionID: transactionID,
 		Amount:        req.Amount.Rial(),

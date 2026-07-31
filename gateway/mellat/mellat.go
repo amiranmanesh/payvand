@@ -259,7 +259,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	saleOrderID := firstNonEmpty(req.Get("SaleOrderId"), req.OrderID)
 
 	var out soap.StringResult
-	res, err := soap.Do(ctx, g.client, soap.Call{
+	res, err := soap.Do(ctx, g.client.NoRetry(), soap.Call{
 		Endpoint:  transport.JoinURL(g.baseURL, servicePath),
 		Action:    "bpReversalRequest",
 		Namespace: namespace,

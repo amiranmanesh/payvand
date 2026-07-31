@@ -31,6 +31,23 @@ type Client struct {
 	opts *core.Options
 	// doer is the underlying HTTP client.
 	doer core.Doer
+	// noRetry overrides the retry policy for calls that must not be replayed.
+	noRetry bool
+}
+
+// NoRetry returns a copy of the client that calls exactly once, whatever the
+// retry policy says.
+//
+// A retry is safe when the worst case is asking the same question twice, which
+// is true of creating a payment token or verifying one: both are keyed by an
+// order or a token the provider recognises. It is not true of moving money
+// back. A reversal that succeeded and then lost its answer to a timeout would
+// be sent a second time, and the providers that do not deduplicate reversals
+// would return the payment twice.
+func (c *Client) NoRetry() *Client {
+	clone := *c
+	clone.noRetry = true
+	return &clone
 }
 
 // New builds a client from the resolved options. When the caller did not
@@ -122,7 +139,7 @@ func (c *Client) Form(ctx context.Context, endpoint string, values url.Values, h
 // raw response.
 func (c *Client) Do(ctx context.Context, method, endpoint string, body []byte, headers map[string]string) (Response, error) {
 	attempts := c.opts.Retry.MaxAttempts
-	if attempts < 1 {
+	if attempts < 1 || c.noRetry {
 		attempts = 1
 	}
 	backoff := c.opts.Retry.Backoff

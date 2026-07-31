@@ -272,7 +272,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	}
 
 	var out refundResponse
-	res, err := g.authorized(ctx, http.MethodPost, transport.JoinURL(g.baseURL, refundPath), body, &out)
+	res, err := g.authorizedOnce(ctx, http.MethodPost, transport.JoinURL(g.baseURL, refundPath), body, &out)
 	if err != nil {
 		return core.RefundResponse{}, core.NewError(Name, "refund", err)
 	}
@@ -305,7 +305,7 @@ func (g *Gateway) Reverse(ctx context.Context, req core.RefundRequest) (core.Ref
 	}
 
 	var out reverseResponse
-	res, err := g.authorized(ctx, http.MethodPost, transport.JoinURL(g.baseURL, reversePath), body, &out)
+	res, err := g.authorizedOnce(ctx, http.MethodPost, transport.JoinURL(g.baseURL, reversePath), body, &out)
 	if err != nil {
 		return core.RefundResponse{}, core.NewError(Name, "reverse", err)
 	}
@@ -402,6 +402,12 @@ func (g *Gateway) ParseCallback(r *http.Request) (core.Callback, error) {
 // when Jibit reports that it expired.
 func (g *Gateway) authorized(ctx context.Context, method, endpoint string, body any, out any) (transport.Response, error) {
 	return g.auth.JSON(ctx, method, endpoint, body, nil, out)
+}
+
+// authorizedOnce is [Gateway.authorized] for the calls that move money back,
+// which must never be replayed by the retry policy.
+func (g *Gateway) authorizedOnce(ctx context.Context, method, endpoint string, body any, out any) (transport.Response, error) {
+	return g.auth.NoRetry().JSON(ctx, method, endpoint, body, nil, out)
 }
 
 // fetchToken exchanges the API key and the secret key for an access token.

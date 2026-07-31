@@ -265,7 +265,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	}
 
 	var out refundResponse
-	res, err := g.auth.JSON(ctx, http.MethodPost, endpoint, body, nil, &out)
+	res, err := g.auth.NoRetry().JSON(ctx, http.MethodPost, endpoint, body, nil, &out)
 	if err != nil {
 		return core.RefundResponse{}, core.NewError(Name, "refund", err)
 	}

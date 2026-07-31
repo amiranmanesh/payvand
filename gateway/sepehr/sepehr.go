@@ -212,7 +212,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	}
 
 	var out adviceResponse
-	res, err := g.client.JSON(ctx, http.MethodPost, transport.JoinURL(g.apiBase, rollbackPath),
+	res, err := g.client.NoRetry().JSON(ctx, http.MethodPost, transport.JoinURL(g.apiBase, rollbackPath),
 		adviceRequest{DigitalReceipt: receipt, Tid: g.cfg.TerminalID}, nil, &out)
 	if err != nil {
 		return core.RefundResponse{}, core.NewError(Name, "refund", err)

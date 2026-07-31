@@ -207,3 +207,49 @@ func TestLoggingHidesCredentialsOnAFailedCall(t *testing.T) {
 		t.Error("the terminal password reached the logger on the error path")
 	}
 }
+
+func TestNoRetryCallsExactlyOnce(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	options := core.NewOptions(core.WithRetry(3, time.Millisecond))
+	client := transport.New(options)
+
+	if _, err := client.Do(context.Background(), http.MethodPost, server.URL, nil, nil); err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	if calls != 3 {
+		t.Fatalf("calls = %d, want the retry policy to apply", calls)
+	}
+
+	calls = 0
+	if _, err := client.NoRetry().Do(context.Background(), http.MethodPost, server.URL, nil, nil); err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d, want a single attempt", calls)
+	}
+}
+
+func TestNoRetryLeavesTheOriginalAlone(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := transport.New(core.NewOptions(core.WithRetry(2, time.Millisecond)))
+	_ = client.NoRetry()
+
+	if _, err := client.Do(context.Background(), http.MethodPost, server.URL, nil, nil); err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d, want the original client to keep retrying", calls)
+	}
+}

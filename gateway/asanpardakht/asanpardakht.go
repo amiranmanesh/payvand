@@ -200,11 +200,11 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 	}
 
 	body := tranRequest{MerchantConfigurationID: g.cfg.MerchantID, PayGateTranID: result.PayGateTranID}
-	if err := g.command(ctx, "verify", verifyPath, body); err != nil {
+	if err := g.command(ctx, g.client, "verify", verifyPath, body); err != nil {
 		return core.VerifyResponse{}, err
 	}
 	if !g.settings.skipSettlement {
-		if err := g.command(ctx, "verify", settlementPath, body); err != nil {
+		if err := g.command(ctx, g.client, "verify", settlementPath, body); err != nil {
 			return core.VerifyResponse{}, err
 		}
 	}
@@ -237,7 +237,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 		path = cancelPath
 	}
 	body := tranRequest{MerchantConfigurationID: g.cfg.MerchantID, PayGateTranID: tranID}
-	if err := g.command(ctx, "refund", path, body); err != nil {
+	if err := g.command(ctx, g.client.NoRetry(), "refund", path, body); err != nil {
 		return core.RefundResponse{}, err
 	}
 
@@ -355,8 +355,8 @@ func checkTranID(supplied string, found int64, op string) error {
 }
 
 // command posts one of the verify/settle/cancel/reverse bodies.
-func (g *Gateway) command(ctx context.Context, op, path string, body tranRequest) error {
-	res, err := g.client.JSON(ctx, http.MethodPost, transport.JoinURL(g.apiBase, path), body, g.headers(), nil)
+func (g *Gateway) command(ctx context.Context, client *transport.Client, op, path string, body tranRequest) error {
+	res, err := client.JSON(ctx, http.MethodPost, transport.JoinURL(g.apiBase, path), body, g.headers(), nil)
 	if err != nil {
 		return core.NewError(Name, op, err)
 	}

@@ -191,7 +191,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	}
 
 	var out transactionResponse
-	res, err := g.client.JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, reversePath),
+	res, err := g.client.NoRetry().JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, reversePath),
 		transactionRequest{RefNum: refNum, TerminalNumber: g.cfg.TerminalID}, nil, &out)
 	if err != nil {
 		return core.RefundResponse{}, core.NewError(Name, "refund", err)

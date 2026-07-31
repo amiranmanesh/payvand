@@ -93,6 +93,16 @@ type Client struct {
 	Expired func(transport.Response) bool
 }
 
+// NoRetry returns a copy of the client whose calls are performed exactly once.
+// It is what a refund or a reversal uses, so a lost answer cannot turn into a
+// second movement of money. The token cache is shared with the original, since
+// re-authenticating is not the part that must not be repeated.
+func (c *Client) NoRetry() *Client {
+	clone := *c
+	clone.Transport = c.Transport.NoRetry()
+	return &clone
+}
+
 // JSON sends an authenticated JSON request and decodes the answer into out.
 func (c *Client) JSON(ctx context.Context, method, endpoint string, body any, headers map[string]string, out any) (transport.Response, error) {
 	var (
