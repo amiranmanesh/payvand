@@ -29,10 +29,15 @@ const (
 const (
 	// codeTokenIssued is the success code of the token endpoint.
 	codeTokenIssued = -1
-	// codeVerified is the success code of the verify and refund endpoints.
+	// codeVerified is the success code of the verify endpoint.
 	codeVerified = 0
 	// codeAlreadyVerified means the transaction was settled before.
 	codeAlreadyVerified = -49
+	// codeRefunded is the success code of a refund. The refund travels through
+	// the verify endpoint but does not answer with its success code: NextPay
+	// documents -90 as "the transaction was refunded and cancelled", and any
+	// other value as "not cancelled".
+	codeRefunded = -90
 )
 
 // refundFlag is the magic value that turns a verify call into a refund.
@@ -220,7 +225,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	if err != nil {
 		return core.RefundResponse{}, core.NewError(Name, "refund", err)
 	}
-	if out.Code != codeVerified {
+	if out.Code != codeRefunded {
 		return core.RefundResponse{}, core.NewError(Name, "refund", core.ErrPaymentFailed).
 			WithCode(strconv.Itoa(out.Code)).WithMessage(Message(out.Code))
 	}
@@ -268,6 +273,8 @@ func Message(code int) string {
 		return "the transaction was already verified"
 	case -51:
 		return "the transaction failed"
+	case -90:
+		return "the transaction was refunded and cancelled"
 	default:
 		return "nextpay error " + strconv.Itoa(code)
 	}

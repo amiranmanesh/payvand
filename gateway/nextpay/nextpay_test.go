@@ -2,9 +2,12 @@ package nextpay_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -62,17 +65,42 @@ func TestPurchaseFailure(t *testing.T) {
 	}
 }
 
-func TestVerifyAndRefund(t *testing.T) {
+// nextpayVerify answers the shared verify endpoint, telling a verification
+// from a refund the way NextPay does: the refund flag decides which code the
+// provider answers with.
+func nextpayVerify(t *testing.T, flag *string) http.HandlerFunc {
+	t.Helper()
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			RefundRequest string `json:"refund_request"`
+		}
+		code := 0
+		if strings.Contains(bodyOf(t, r, &body), "yes_money_back") {
+			code = -90
+		}
+		*flag = body.RefundRequest
+		testutil.JSON(`{"code":`+strconv.Itoa(code)+`,"amount":150000,"order_id":"1001",
+			"Shaparak_Ref_Id":"RRN-7","card_holder":"603799******1234"}`)(w, r)
+	}
+}
+
+// bodyOf decodes a captured request body and returns it as raw text.
+func bodyOf(t *testing.T, r *http.Request, target any) string {
+	t.Helper()
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		t.Fatalf("reading request body: %v", err)
+	}
+	if err := json.Unmarshal(raw, target); err != nil {
+		t.Fatalf("decoding request body: %v", err)
+	}
+	return string(raw)
+}
+
+func TestVerify(t *testing.T) {
 	var refundFlag string
 	server := testutil.NewServer(t, testutil.Routes{
-		"/nx/gateway/verify": func(w http.ResponseWriter, r *http.Request) {
-			var body struct {
-				RefundRequest string `json:"refund_request"`
-			}
-			testutil.Capture(t, &body, `{"code":0,"amount":150000,"order_id":"1001","Shaparak_Ref_Id":"RRN-7",
-				"card_holder":"603799******1234"}`)(w, r)
-			refundFlag = body.RefundRequest
-		},
+		"/nx/gateway/verify": nextpayVerify(t, &refundFlag),
 	})
 	gw, _ := nextpay.New(core.Config{MerchantKey: "k"}, core.WithBaseURL(server.URL))
 
@@ -83,6 +111,14 @@ func TestVerifyAndRefund(t *testing.T) {
 	if res.ReferenceNumber != "RRN-7" || refundFlag != "" {
 		t.Fatalf("verify must not set the refund flag, got %+v / %q", res, refundFlag)
 	}
+}
+
+func TestRefundAcceptsTheRefundCode(t *testing.T) {
+	var refundFlag string
+	server := testutil.NewServer(t, testutil.Routes{
+		"/nx/gateway/verify": nextpayVerify(t, &refundFlag),
+	})
+	gw, _ := nextpay.New(core.Config{MerchantKey: "k"}, core.WithBaseURL(server.URL))
 
 	if _, err := gw.Refund(context.Background(), core.RefundRequest{
 		Token: "trans-1", Amount: core.Rial(150_000),
@@ -91,6 +127,20 @@ func TestVerifyAndRefund(t *testing.T) {
 	}
 	if refundFlag != "yes_money_back" {
 		t.Fatalf("refund_request = %q", refundFlag)
+	}
+}
+
+func TestRefundRejectsAVerifyCode(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		// Code 0 is the verify success. NextPay documents anything but -90 as
+		// "the transaction was not cancelled", so a refund must not take it.
+		"/nx/gateway/verify": testutil.JSON(`{"code":0,"amount":150000}`),
+	})
+	gw, _ := nextpay.New(core.Config{MerchantKey: "k"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Refund(context.Background(), core.RefundRequest{Token: "trans-1", Amount: core.Rial(150_000)})
+	if !errors.Is(err, core.ErrPaymentFailed) {
+		t.Fatalf("error = %v, want ErrPaymentFailed", err)
 	}
 }
 
