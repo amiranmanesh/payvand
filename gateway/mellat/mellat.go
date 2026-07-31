@@ -30,8 +30,17 @@ const (
 	namespace = "http://interfaces.core.sw.bps.com/"
 )
 
-// resultOK is the success code returned by every Mellat operation.
-const resultOK = "0"
+// Result codes that mean an earlier attempt already did the work.
+const (
+	// resultOK is the success code returned by every Mellat operation.
+	resultOK = "0"
+	// resultAlreadyVerified means a previous bpVerifyRequest went through.
+	resultAlreadyVerified = "43"
+	// resultAlreadySettled means a previous bpSettleRequest went through.
+	resultAlreadySettled = "45"
+	// resultNotSettled means the transaction is verified but not settled yet.
+	resultNotSettled = "46"
+)
 
 // defaultPayerID is sent when the merchant does not use payer identifiers.
 const defaultPayerID = "0"
@@ -183,9 +192,17 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 	if err != nil {
 		return core.VerifyResponse{}, core.NewError(Name, "verify", err)
 	}
-	if code, _ := split(verified.Return); code != resultOK {
+	verifyCode, _ := split(verified.Return)
+	switch verifyCode {
+	case resultOK:
+	case resultAlreadyVerified:
+		// An earlier attempt verified the transaction and lost the answer on
+		// the way back. Settling is the step that keeps the money — Mellat
+		// reverses a verified but unsettled transaction — so the flow carries
+		// on to it instead of stopping one call short.
+	default:
 		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrPaymentFailed).
-			WithCode(code).WithMessage(Message(code))
+			WithCode(verifyCode).WithMessage(Message(verifyCode))
 	}
 
 	if !g.settings.skipSettle {
@@ -205,10 +222,22 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		}, &settled); err != nil {
 			return core.VerifyResponse{}, core.NewError(Name, "verify", err)
 		}
-		if code, _ := split(settled.Return); code != resultOK {
+		settleCode, _ := split(settled.Return)
+		switch settleCode {
+		case resultOK:
+		case resultAlreadySettled:
+			// Verified and settled before this call: the money is safe, but
+			// this is not the settlement of a fresh payment and a caller that
+			// ships on every successful verification must not ship twice.
+			return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrAlreadyVerified).
+				WithCode(settleCode).WithMessage(Message(settleCode))
+		default:
 			return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrPaymentFailed).
-				WithCode(code).WithMessage(Message(code))
+				WithCode(settleCode).WithMessage(Message(settleCode))
 		}
+	} else if verifyCode == resultAlreadyVerified {
+		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrAlreadyVerified).
+			WithCode(verifyCode).WithMessage(Message(verifyCode))
 	}
 
 	return core.VerifyResponse{
@@ -230,7 +259,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	saleOrderID := firstNonEmpty(req.Get("SaleOrderId"), req.OrderID)
 
 	var out soap.StringResult
-	res, err := soap.Do(ctx, g.client, soap.Call{
+	res, err := soap.Do(ctx, g.client.NoRetry(), soap.Call{
 		Endpoint:  transport.JoinURL(g.baseURL, servicePath),
 		Action:    "bpReversalRequest",
 		Namespace: namespace,
@@ -280,10 +309,19 @@ func (g *Gateway) Inquiry(ctx context.Context, req core.InquiryRequest) (core.In
 		return core.InquiryResponse{}, core.NewError(Name, "inquiry", err)
 	}
 
+	// Inquiry is the recovery path for a lost callback, so the codes that mean
+	// "this already happened" are answers about a live transaction, not
+	// failures. Reporting them as failed is what would have a merchant cancel
+	// an order the payer paid for.
 	code, _ := split(out.Return)
-	status := core.StatusFailed
-	if code == resultOK {
+	var status core.Status
+	switch code {
+	case resultOK, resultAlreadySettled:
 		status = core.StatusVerified
+	case resultAlreadyVerified, resultNotSettled:
+		status = core.StatusPaid
+	default:
+		status = core.StatusFailed
 	}
 
 	return core.InquiryResponse{

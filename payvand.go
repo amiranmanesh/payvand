@@ -270,6 +270,14 @@ func Rial(amount int64) Money { return core.Rial(amount) }
 // Toman builds an amount expressed in Iranian Toman.
 func Toman(amount int64) Money { return core.Toman(amount) }
 
+// SettledAmount reconciles the amount a provider reports for a payment with the
+// amount that was ordered, returning an error wrapping [ErrAmountMismatch] when
+// they disagree. Gateways apply it inside [Gateway.Verify]; it is exported for
+// the same check against an [InquiryResponse].
+func SettledAmount(gateway Name, requested, reported Money) (Money, error) {
+	return core.SettledAmount(gateway, requested, reported)
+}
+
 // WithHTTPClient sets the HTTP client used for every call.
 func WithHTTPClient(client Doer) Option { return core.WithHTTPClient(client) }
 

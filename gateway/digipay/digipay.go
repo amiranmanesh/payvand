@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -201,7 +202,7 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithMessage("tracking code is required")
 	}
 
-	endpoint := transport.JoinURL(g.baseURL, verifyPath+trackingCode) +
+	endpoint := transport.JoinURL(g.baseURL, verifyPath+url.PathEscape(trackingCode)) +
 		"?type=" + g.requestTicketType(req.Extra)
 
 	var out verifyResponse
@@ -213,9 +214,13 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		return core.VerifyResponse{}, failure("verify", out.Result, "digipay did not verify the payment")
 	}
 
-	amount := req.Amount
-	if parsed, err := strconv.ParseInt(out.Amount.String(), 10, 64); err == nil && parsed > 0 {
-		amount = core.Rial(parsed)
+	var reported core.Money
+	if parsed, convErr := strconv.ParseInt(out.Amount.String(), 10, 64); convErr == nil {
+		reported = core.Rial(parsed)
+	}
+	amount, err := core.SettledAmount(Name, req.Amount, reported)
+	if err != nil {
+		return core.VerifyResponse{}, err
 	}
 	card := out.CardNumber
 	if card == "" {
@@ -261,7 +266,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	}
 
 	var out refundResponse
-	res, err := g.auth.JSON(ctx, http.MethodPost, endpoint, body, nil, &out)
+	res, err := g.auth.NoRetry().JSON(ctx, http.MethodPost, endpoint, body, nil, &out)
 	if err != nil {
 		return core.RefundResponse{}, core.NewError(Name, "refund", err)
 	}
@@ -354,7 +359,7 @@ func (g *Gateway) RefundStatus(ctx context.Context, refundID string, ticketType 
 			WithMessage("refund id is required")
 	}
 
-	endpoint := transport.JoinURL(g.baseURL, refundPath+"/"+refundID) + "?type=" + strconv.Itoa(ticketType)
+	endpoint := transport.JoinURL(g.baseURL, refundPath+"/"+url.PathEscape(refundID)) + "?type=" + strconv.Itoa(ticketType)
 	var out refundStatusResponse
 	res, err := g.auth.JSON(ctx, http.MethodPost, endpoint, nil, nil, &out)
 	if err != nil {

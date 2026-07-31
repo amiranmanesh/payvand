@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -140,5 +141,115 @@ func TestJoinURL(t *testing.T) {
 		if got := transport.JoinURL(tc.base, tc.path); got != tc.want {
 			t.Errorf("JoinURL(%q, %q) = %q, want %q", tc.base, tc.path, got, tc.want)
 		}
+	}
+}
+
+// recordingLogger keeps the fields of every event, so a test can assert on
+// what a real logging pipeline would have received.
+type recordingLogger struct {
+	events []map[string]string
+}
+
+func (l *recordingLogger) Debug(_ context.Context, _ string, fields map[string]string) {
+	l.events = append(l.events, fields)
+}
+
+func (l *recordingLogger) Error(_ context.Context, _ string, _ error, fields map[string]string) {
+	l.events = append(l.events, fields)
+}
+
+// contains reports whether any recorded field holds the given text.
+func (l *recordingLogger) contains(text string) bool {
+	for _, fields := range l.events {
+		for _, value := range fields {
+			if strings.Contains(value, text) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func TestLoggingHidesTheTerminalCredentials(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"token":"tok-1"}`))
+	}))
+	defer server.Close()
+
+	logger := &recordingLogger{}
+	client := transport.New(core.NewOptions(core.WithLogger(logger)))
+
+	body := map[string]string{"username": "shop", "password": "s3cret", "orderId": "1001"}
+	if _, err := client.JSON(context.Background(), http.MethodPost, server.URL, body, nil, nil); err != nil {
+		t.Fatalf("JSON() error = %v", err)
+	}
+
+	if logger.contains("s3cret") {
+		t.Error("the terminal password reached the logger")
+	}
+	if !logger.contains("1001") {
+		t.Error("the order id must survive, or the log is useless for support")
+	}
+}
+
+func TestLoggingHidesCredentialsOnAFailedCall(t *testing.T) {
+	logger := &recordingLogger{}
+	client := transport.New(core.NewOptions(core.WithLogger(logger)))
+
+	body := map[string]string{"password": "s3cret"}
+	// An unroutable host fails the round trip, which is the path that logs at
+	// error level — the one a production incident actually goes through.
+	_, err := client.JSON(context.Background(), http.MethodPost, "http://127.0.0.1:1/pay", body, nil, nil)
+	if err == nil {
+		t.Fatal("the call was expected to fail")
+	}
+	if logger.contains("s3cret") {
+		t.Error("the terminal password reached the logger on the error path")
+	}
+}
+
+func TestNoRetryCallsExactlyOnce(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	options := core.NewOptions(core.WithRetry(3, time.Millisecond))
+	client := transport.New(options)
+
+	if _, err := client.Do(context.Background(), http.MethodPost, server.URL, nil, nil); err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	if calls != 3 {
+		t.Fatalf("calls = %d, want the retry policy to apply", calls)
+	}
+
+	calls = 0
+	if _, err := client.NoRetry().Do(context.Background(), http.MethodPost, server.URL, nil, nil); err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d, want a single attempt", calls)
+	}
+}
+
+func TestNoRetryLeavesTheOriginalAlone(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := transport.New(core.NewOptions(core.WithRetry(2, time.Millisecond)))
+	_ = client.NoRetry()
+
+	if _, err := client.Do(context.Background(), http.MethodPost, server.URL, nil, nil); err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d, want the original client to keep retrying", calls)
 	}
 }

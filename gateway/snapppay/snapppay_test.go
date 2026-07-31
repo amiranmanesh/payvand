@@ -344,3 +344,18 @@ func TestNewValidatesTheCredentials(t *testing.T) {
 		t.Fatalf("error = %v, want ErrInvalidConfig", err)
 	}
 }
+
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	oauthPath, oauthHandler := oauth()
+	server := testutil.NewServer(t, testutil.Routes{
+		oauthPath: oauthHandler,
+		"/api/online/payment/v1/verify": testutil.JSON(
+			`{"successful":true,"response":{"amount":15000,"transactionId":"tr-1"}}`),
+	})
+	gw, _ := snapppay.New(merchant, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "tok-1", Amount: core.Rial(150_000)})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}

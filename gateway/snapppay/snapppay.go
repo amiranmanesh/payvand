@@ -250,18 +250,28 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 	if err != nil {
 		return core.VerifyResponse{}, err
 	}
+	// Settling is what makes the payment final and releases the goods, so the
+	// amount is reconciled before that step rather than after it.
+	amount, err := core.SettledAmount(Name, req.Amount, core.Rial(verified.Amount))
+	if err != nil {
+		return core.VerifyResponse{}, err
+	}
 	if !g.settings.manualSettle {
-		settled, settleRes, err := g.call(ctx, "verify", settlePath, req.Token)
-		if err != nil {
-			return core.VerifyResponse{}, err
+		settled, settleRes, settleErr := g.call(ctx, "verify", settlePath, req.Token)
+		if settleErr != nil {
+			return core.VerifyResponse{}, settleErr
 		}
-		verified, res = settled, settleRes
+		// The settle answer is thinner than the verify one, so it adds to what
+		// verification reported instead of replacing it.
+		res = settleRes
+		if settled.ReferenceNumber != "" {
+			verified.ReferenceNumber = settled.ReferenceNumber
+		}
+		if settled.TransactionID != "" {
+			verified.TransactionID = settled.TransactionID
+		}
 	}
 
-	amount := req.Amount
-	if verified.Amount > 0 {
-		amount = core.Rial(verified.Amount)
-	}
 	reference := verified.ReferenceNumber
 	if reference == "" {
 		reference = req.ReferenceNumber
@@ -386,13 +396,18 @@ func (g *Gateway) ParseCallback(r *http.Request) (core.Callback, error) {
 
 // call performs one of the paymentToken shaped POST endpoints.
 func (g *Gateway) call(ctx context.Context, op, path, paymentToken string) (verifyData, transport.Response, error) {
+	// Reverting money is not replayed: a lost answer must not send it twice.
+	auth := g.auth
+	if op == "refund" {
+		auth = auth.NoRetry()
+	}
 	if paymentToken == "" {
 		return verifyData{}, transport.Response{}, core.NewError(Name, op, core.ErrInvalidRequest).
 			WithMessage("payment token is required")
 	}
 
 	var out verifyResponse
-	res, err := g.auth.JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, path),
+	res, err := auth.JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, path),
 		paymentTokenRequest{PaymentToken: paymentToken}, nil, &out)
 	if err != nil {
 		return verifyData{}, res, core.NewError(Name, op, err)

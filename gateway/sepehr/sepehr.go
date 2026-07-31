@@ -163,6 +163,15 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrInvalidRequest).
 			WithMessage("the digital receipt of the callback is required")
 	}
+	// The advice call carries the receipt and the terminal and nothing else, so
+	// Sepehr will settle any receipt issued to the terminal against any order.
+	// What the callback claimed the payment was for is checked against the
+	// caller's own record first; it does not prove the receipt belongs to this
+	// order, but it does stop a receipt landing on an order it never paid for
+	// unless the callback was rewritten to match.
+	if err := matchesCallback(req); err != nil {
+		return core.VerifyResponse{}, err
+	}
 
 	var out adviceResponse
 	res, err := g.client.JSON(ctx, http.MethodPost, transport.JoinURL(g.apiBase, advicePath),
@@ -171,7 +180,15 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		return core.VerifyResponse{}, core.NewError(Name, "verify", err)
 	}
 	status := strings.ToLower(strings.TrimSpace(out.Status))
-	if status != statusAdviceOK && status != statusAdviceDuplicate {
+	switch {
+	case status == statusAdviceDuplicate:
+		// The receipt was settled by an earlier advice. That is a normal
+		// answer to a retried callback and a wrong one to a fresh order, and
+		// only the caller knows which it is holding, so it is reported rather
+		// than passed off as this payment's settlement.
+		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrAlreadyVerified).
+			WithCode(out.Status).WithMessage(firstNonEmpty(out.Message, out.Description))
+	case status != statusAdviceOK:
 		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrPaymentFailed).
 			WithCode(out.Status).WithMessage(firstNonEmpty(out.Message, out.Description))
 	}
@@ -195,7 +212,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	}
 
 	var out adviceResponse
-	res, err := g.client.JSON(ctx, http.MethodPost, transport.JoinURL(g.apiBase, rollbackPath),
+	res, err := g.client.NoRetry().JSON(ctx, http.MethodPost, transport.JoinURL(g.apiBase, rollbackPath),
 		adviceRequest{DigitalReceipt: receipt, Tid: g.cfg.TerminalID}, nil, &out)
 	if err != nil {
 		return core.RefundResponse{}, core.NewError(Name, "refund", err)
@@ -232,6 +249,27 @@ func (g *Gateway) ParseCallback(r *http.Request) (core.Callback, error) {
 		callback.Amount = core.Rial(amount)
 	}
 	return callback, nil
+}
+
+// matchesCallback checks the invoice and amount Sepehr posted to the callback
+// against the ones the caller is verifying. Both sides of the comparison are
+// only as trustworthy as the callback itself, so this catches a receipt that
+// wandered onto the wrong order rather than a forged one; the advice endpoint
+// offers nothing better to bind against.
+func matchesCallback(req core.VerifyRequest) error {
+	if invoice := core.FirstValue(req.Extra, "invoiceid", "InvoiceId", "invoiceID"); invoice != "" &&
+		req.OrderID != "" && invoice != req.OrderID {
+		return core.NewError(Name, "verify", core.ErrInvalidRequest).
+			WithMessage("the callback reports invoice " + invoice + ", not " + req.OrderID)
+	}
+	reported, err := strconv.ParseInt(core.FirstValue(req.Extra, "amount", "Amount"), 10, 64)
+	if err != nil {
+		return nil
+	}
+	if _, err := core.SettledAmount(Name, req.Amount, core.Rial(reported)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // receiptOf finds the digital receipt among the extra callback values.

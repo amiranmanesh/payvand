@@ -178,15 +178,22 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		return core.VerifyResponse{}, core.NewError(Name, "verify", err)
 	}
 	switch out.Status {
-	case statusVerified, statusAlreadyVerified:
+	case statusVerified:
+	case statusAlreadyVerified:
+		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrAlreadyVerified).
+			WithCode(strconv.Itoa(out.Status)).WithMessage(firstNonEmpty(out.Message, out.Description))
 	default:
 		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrPaymentFailed).
 			WithCode(strconv.Itoa(out.Status)).WithMessage(firstNonEmpty(out.Message, out.Description))
 	}
 
-	amount := req.Amount
-	if parsed, err := strconv.ParseInt(out.Amount, 10, 64); err == nil && parsed > 0 {
-		amount = core.Rial(parsed)
+	var reported core.Money
+	if parsed, convErr := strconv.ParseInt(out.Amount, 10, 64); convErr == nil {
+		reported = core.Rial(parsed)
+	}
+	amount, err := core.SettledAmount(Name, req.Amount, reported)
+	if err != nil {
+		return core.VerifyResponse{}, err
 	}
 	orderID := out.FactorID
 	if orderID == "" {

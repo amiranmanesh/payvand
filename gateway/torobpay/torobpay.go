@@ -35,6 +35,7 @@ const (
 	oauthPath  = "/api/online/v1/oauth/token"
 	tokenPath  = "/api/online/payment/v1/token"
 	verifyPath = "/api/online/payment/v1/verify"
+	settlePath = "/api/online/payment/v1/settle"
 	revertPath = "/api/online/payment/v1/revert"
 	statusPath = "/api/online/payment/v1/status"
 	cancelPath = "/api/online/payment/v1/cancel"
@@ -153,8 +154,16 @@ func (g *Gateway) Purchase(ctx context.Context, req core.PurchaseRequest) (core.
 	}, nil
 }
 
-// Verify confirms a completed payment. TorobPay settles the credit itself, so
-// a successful verification is the end of the flow.
+// Verify confirms a completed payment.
+//
+// Whether that is the end of the flow depends on the contract: this package
+// assumes TorobPay settles the credit itself, which is how the gateway has
+// always behaved here. Its sibling SnappPay serves the same endpoint paths and
+// does require a separate settle call, reverting anything left unsettled, so
+// confirm which of the two your contract follows and turn [WithSettle] on if
+// TorobPay expects the second call. Settling a payment that needs no settling
+// is an error from the provider; not settling one that does is a payment the
+// merchant never receives.
 func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.VerifyResponse, error) {
 	if req.Token == "" {
 		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrInvalidRequest).
@@ -166,9 +175,22 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		return core.VerifyResponse{}, err
 	}
 
-	amount := req.Amount
-	if verified.Amount > 0 {
-		amount = core.Rial(verified.Amount)
+	amount, err := core.SettledAmount(Name, req.Amount, core.Rial(verified.Amount))
+	if err != nil {
+		return core.VerifyResponse{}, err
+	}
+	if g.settings.settle {
+		settled, settleRes, settleErr := g.call(ctx, "verify", settlePath, req.Token)
+		if settleErr != nil {
+			return core.VerifyResponse{}, settleErr
+		}
+		res = settleRes
+		if settled.ReferenceNumber != "" {
+			verified.ReferenceNumber = settled.ReferenceNumber
+		}
+		if settled.TransactionID != "" {
+			verified.TransactionID = settled.TransactionID
+		}
 	}
 	reference := verified.ReferenceNumber
 	if reference == "" {
@@ -261,13 +283,18 @@ func (g *Gateway) ParseCallback(r *http.Request) (core.Callback, error) {
 
 // call performs one of the paymentToken shaped POST endpoints.
 func (g *Gateway) call(ctx context.Context, op, path, paymentToken string) (verifyData, transport.Response, error) {
+	// Reverting money is not replayed: a lost answer must not send it twice.
+	auth := g.auth
+	if op == "refund" {
+		auth = auth.NoRetry()
+	}
 	if paymentToken == "" {
 		return verifyData{}, transport.Response{}, core.NewError(Name, op, core.ErrInvalidRequest).
 			WithMessage("payment token is required")
 	}
 
 	var out verifyResponse
-	res, err := g.auth.JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, path),
+	res, err := auth.JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, path),
 		paymentTokenRequest{PaymentToken: paymentToken}, nil, &out)
 	if err != nil {
 		return verifyData{}, res, core.NewError(Name, op, err)

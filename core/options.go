@@ -19,10 +19,13 @@ type Doer interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// RetryPolicy controls how transport level failures are retried. Only
-// idempotent-by-design gateway calls (token creation and verification are
-// keyed by order id or token) are retried, and only on network errors or 5xx
-// responses.
+// RetryPolicy controls how transport level failures are retried, on network
+// errors and 5xx responses.
+//
+// It applies to the calls where the worst case is asking the same question
+// twice: creating a payment token, verifying one, reading a status. Refunds and
+// reversals are excluded, since a retry there could send the money back a
+// second time, and the providers do not all deduplicate that.
 type RetryPolicy struct {
 	// MaxAttempts is the total number of attempts, including the first one.
 	// Values below one disable retrying.

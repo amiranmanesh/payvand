@@ -102,6 +102,19 @@ func TestVerify(t *testing.T) {
 	}
 }
 
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/vpg/api/v0/Advice/Verify": testutil.JSON(`{"ResCode":0,"Amount":15000,"OrderId":1001,
+			"RetrivalRefNo":"RRN-3","SystemTraceNo":"TRACE-3"}`),
+	})
+	gw := newGateway(t, server.URL)
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "token-1", Amount: core.Rial(150_000)})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}
+
 func TestParseCallback(t *testing.T) {
 	gw := newGateway(t, "https://example.invalid")
 	body := strings.NewReader("token=token-1&OrderId=1001&ResCode=0")

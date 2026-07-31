@@ -115,14 +115,17 @@ func TestVerify(t *testing.T) {
 	}
 }
 
-func TestVerifyAcceptsAlreadyVerified(t *testing.T) {
+func TestVerifyReportsAlreadyVerified(t *testing.T) {
 	server := testutil.NewServer(t, testutil.Routes{
 		"/pg/v4/payment/verify.json": testutil.JSON(`{"data":{"code":101,"ref_id":55},"errors":[]}`),
 	})
 	gw, _ := zarinpal.New(core.Config{MerchantKey: "m"}, core.WithBaseURL(server.URL))
 
-	if _, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "A1", Amount: core.Rial(1000)}); err != nil {
-		t.Fatalf("Verify() error = %v, want a repeated verification to succeed", err)
+	// The payment is settled, but by an earlier call: a caller that ships on
+	// every clean verification must be able to tell the two apart.
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "A1", Amount: core.Rial(1000)})
+	if !errors.Is(err, core.ErrAlreadyVerified) {
+		t.Fatalf("error = %v, want ErrAlreadyVerified", err)
 	}
 }
 

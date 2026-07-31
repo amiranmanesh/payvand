@@ -97,6 +97,18 @@ func TestVerify(t *testing.T) {
 	}
 }
 
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/v1/verify": testutil.JSON(`{"result":100,"amount":15000,"refNumber":"9988","status":1}`),
+	})
+	gw, _ := zibal.New(core.Config{MerchantKey: "m"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "3355", Amount: core.Rial(150_000)})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}
+
 func TestVerifyRejectsNonNumericToken(t *testing.T) {
 	gw, _ := zibal.New(core.Config{MerchantKey: "m"})
 	if _, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "not-a-track-id"}); !errors.Is(err, core.ErrInvalidRequest) {
@@ -116,6 +128,23 @@ func TestInquiry(t *testing.T) {
 	}
 	if res.Status != core.StatusVerified {
 		t.Fatalf("status = %v", res.Status)
+	}
+}
+
+func TestInquiryReportsPaidButUnverified(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		// Status 2 is "paid, not verified": Zibal reverses it unless the
+		// merchant still calls Verify.
+		"/v1/inquiry": testutil.JSON(`{"result":100,"status":2,"amount":150000,"refNumber":"9988"}`),
+	})
+	gw, _ := zibal.New(core.Config{MerchantKey: "m"}, core.WithBaseURL(server.URL))
+
+	res, err := gw.Inquiry(context.Background(), core.InquiryRequest{Token: "3355"})
+	if err != nil {
+		t.Fatalf("Inquiry() error = %v", err)
+	}
+	if res.Status != core.StatusPaid {
+		t.Fatalf("status = %v, want paid", res.Status)
 	}
 }
 
@@ -149,5 +178,17 @@ func TestSandboxForcesTestMerchant(t *testing.T) {
 	}
 	if sent.Merchant != "zibal" {
 		t.Fatalf("merchant = %q, want the sandbox merchant", sent.Merchant)
+	}
+}
+
+func TestVerifyReportsAlreadyVerified(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/v1/verify": testutil.JSON(`{"result":201,"message":"قبلا تایید شده"}`),
+	})
+	gw, _ := zibal.New(core.Config{MerchantKey: "m"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "3355", Amount: core.Rial(150_000)})
+	if !errors.Is(err, core.ErrAlreadyVerified) {
+		t.Fatalf("error = %v, want ErrAlreadyVerified", err)
 	}
 }

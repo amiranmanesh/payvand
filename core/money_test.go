@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/amiranmanesh/payvand/core"
@@ -43,6 +44,41 @@ func TestMoneyIn(t *testing.T) {
 	back := converted.In(core.IRT)
 	if back.Amount != 2_500 || back.Currency != core.IRT {
 		t.Fatalf("In(IRT) = %v, want 2500 IRT", back)
+	}
+}
+
+func TestSettledAmount(t *testing.T) {
+	cases := []struct {
+		name      string
+		requested core.Money
+		reported  core.Money
+		want      core.Money
+		wantErr   bool
+	}{
+		{name: "equal amounts", requested: core.Rial(150_000), reported: core.Rial(150_000), want: core.Rial(150_000)},
+		{name: "equal across units", requested: core.Toman(15_000), reported: core.Rial(150_000), want: core.Rial(150_000)},
+		{name: "provider settled less", requested: core.Rial(150_000), reported: core.Rial(15_000), wantErr: true},
+		{name: "provider settled more", requested: core.Rial(150_000), reported: core.Rial(1_500_000), wantErr: true},
+		{name: "provider states nothing", requested: core.Rial(150_000), reported: core.Money{}, want: core.Rial(150_000)},
+		{name: "caller states nothing", requested: core.Money{}, reported: core.Rial(150_000), want: core.Rial(150_000)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := core.SettledAmount("gw", tc.requested, tc.reported)
+			if tc.wantErr {
+				if !errors.Is(err, core.ErrAmountMismatch) {
+					t.Fatalf("error = %v, want ErrAmountMismatch", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("SettledAmount() error = %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("SettledAmount() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

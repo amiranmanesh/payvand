@@ -119,7 +119,7 @@ func (g *Gateway) Capabilities() core.Capabilities {
 }
 
 // signedCall marshals the body, signs it with the terminal key and posts it.
-func (g *Gateway) signedCall(ctx context.Context, op, path string, body, out any) (transport.Response, error) {
+func (g *Gateway) signedCall(ctx context.Context, client *transport.Client, op, path string, body, out any) (transport.Response, error) {
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return transport.Response{}, core.NewError(Name, op, err)
@@ -178,7 +178,7 @@ func (g *Gateway) Purchase(ctx context.Context, req core.PurchaseRequest) (core.
 	}
 
 	var out tokenResponse
-	res, err := g.signedCall(ctx, "purchase", tokenPath, body, &out)
+	res, err := g.signedCall(ctx, g.client, "purchase", tokenPath, body, &out)
 	if err != nil {
 		return core.PurchaseResponse{}, err
 	}
@@ -217,7 +217,7 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrInvalidRequest).
 				WithMessage("the transaction reference (tref) of the callback is required")
 		}
-		if _, err := g.signedCall(ctx, "verify", checkPath, checkRequest{
+		if _, err := g.signedCall(ctx, g.client, "verify", checkPath, checkRequest{
 			TransactionReferenceID: reference,
 			InvoiceNumber:          req.OrderID,
 			InvoiceDate:            invoiceDate,
@@ -237,7 +237,7 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 	}
 
 	var settled settlementResponse
-	res, err := g.signedCall(ctx, "verify", verifyPath, settlementRequest{
+	res, err := g.signedCall(ctx, g.client, "verify", verifyPath, settlementRequest{
 		InvoiceNumber: req.OrderID,
 		InvoiceDate:   invoiceDate,
 		Amount:        req.Amount.Rial(),
@@ -278,7 +278,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	}
 
 	var out settlementResponse
-	res, err := g.signedCall(ctx, "refund", refundPath, settlementRequest{
+	res, err := g.signedCall(ctx, g.client.NoRetry(), "refund", refundPath, settlementRequest{
 		InvoiceNumber: req.OrderID,
 		InvoiceDate:   invoiceDate,
 		Amount:        req.Amount.Rial(),
@@ -306,7 +306,7 @@ func (g *Gateway) Inquiry(ctx context.Context, req core.InquiryRequest) (core.In
 	}
 
 	var out checkResponse
-	res, err := g.signedCall(ctx, "inquiry", checkPath, checkRequest{
+	res, err := g.signedCall(ctx, g.client, "inquiry", checkPath, checkRequest{
 		TransactionReferenceID: firstNonEmpty(req.ReferenceNumber, req.Get("tref")),
 		InvoiceNumber:          req.OrderID,
 		InvoiceDate:            invoiceDate,

@@ -120,3 +120,32 @@ func TestParseCallback(t *testing.T) {
 		t.Fatalf("callback = %+v", callback)
 	}
 }
+
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/api/v4/transaction": testutil.JSON(`{"status":1,"refnumber":"RRN-1","transId":42,"amount":"15000.00"}`),
+		"/api/v4/verify":      testutil.JSON(`{"status":1,"amount":"15000.00","transId":42}`),
+	})
+	gw, _ := vandar.New(core.Config{MerchantKey: "k"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "tok-1", Amount: core.Rial(150_000)})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}
+
+func TestVerifyReadsDecimalAmount(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/api/v4/transaction": testutil.JSON(`{"status":1,"refnumber":"RRN-1","transId":42,"amount":"150000.00"}`),
+		"/api/v4/verify":      testutil.JSON(`{"status":1,"amount":"150000.00","transId":42}`),
+	})
+	gw, _ := vandar.New(core.Config{MerchantKey: "k"}, core.WithBaseURL(server.URL))
+
+	res, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "tok-1", Amount: core.Rial(150_000)})
+	if err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+	if res.Amount.Rial() != 150_000 {
+		t.Fatalf("amount = %v, want 150000 IRR", res.Amount)
+	}
+}

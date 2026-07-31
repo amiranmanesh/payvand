@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -202,7 +203,7 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithMessage("token (purchase id) is required")
 	}
 
-	endpoint := transport.JoinURL(g.baseURL, purchasesPath+"/"+req.Token+"/verify")
+	endpoint := transport.JoinURL(g.baseURL, purchasesPath+"/"+url.PathEscape(req.Token)+"/verify")
 
 	var out verifyResponse
 	res, err := g.authorized(ctx, http.MethodPost, endpoint, nil, &out)
@@ -220,9 +221,11 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithCode(out.Status).WithMessage("jibit did not verify the purchase")
 	}
 
-	// The verify endpoint answers with a status only, so the reference number
-	// and the card come from the callback the caller passed in, or from an
-	// inquiry when the caller has neither.
+	// The verify endpoint answers with a status only, so the reference number,
+	// the card and above all the amount come from the purchase itself. The
+	// inquiry is what makes the settled amount checkable at all here, so it is
+	// worth its round trip whenever the caller stated what it expects to be
+	// paid, and not only when the callback fields are missing.
 	verified := core.VerifyResponse{
 		ReferenceNumber: req.ReferenceNumber,
 		TransactionID:   req.Token,
@@ -231,14 +234,19 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 		Amount:          req.Amount,
 		Raw:             res.Body,
 	}
-	if verified.ReferenceNumber == "" {
-		if inquiry, err := g.Inquiry(ctx, core.InquiryRequest{Token: req.Token}); err == nil {
-			verified.ReferenceNumber = inquiry.ReferenceNumber
+	if verified.ReferenceNumber == "" || !req.Amount.IsZero() {
+		inquiry, inquiryErr := g.Inquiry(ctx, core.InquiryRequest{Token: req.Token})
+		if inquiryErr == nil {
+			amount, err := core.SettledAmount(Name, req.Amount, inquiry.Amount)
+			if err != nil {
+				return core.VerifyResponse{}, err
+			}
+			verified.Amount = amount
+			if verified.ReferenceNumber == "" {
+				verified.ReferenceNumber = inquiry.ReferenceNumber
+			}
 			if verified.CardNumber == "" {
 				verified.CardNumber = inquiry.CardNumber
-			}
-			if verified.Amount.Amount == 0 {
-				verified.Amount = inquiry.Amount
 			}
 		}
 	}
@@ -265,7 +273,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	}
 
 	var out refundResponse
-	res, err := g.authorized(ctx, http.MethodPost, transport.JoinURL(g.baseURL, refundPath), body, &out)
+	res, err := g.authorizedOnce(ctx, http.MethodPost, transport.JoinURL(g.baseURL, refundPath), body, &out)
 	if err != nil {
 		return core.RefundResponse{}, core.NewError(Name, "refund", err)
 	}
@@ -298,7 +306,7 @@ func (g *Gateway) Reverse(ctx context.Context, req core.RefundRequest) (core.Ref
 	}
 
 	var out reverseResponse
-	res, err := g.authorized(ctx, http.MethodPost, transport.JoinURL(g.baseURL, reversePath), body, &out)
+	res, err := g.authorizedOnce(ctx, http.MethodPost, transport.JoinURL(g.baseURL, reversePath), body, &out)
 	if err != nil {
 		return core.RefundResponse{}, core.NewError(Name, "reverse", err)
 	}
@@ -321,9 +329,9 @@ func (g *Gateway) Inquiry(ctx context.Context, req core.InquiryRequest) (core.In
 	query := ""
 	switch {
 	case req.Token != "":
-		query = "?purchaseId=" + req.Token
+		query = "?purchaseId=" + url.QueryEscape(req.Token)
 	case req.OrderID != "":
-		query = "?clientReferenceNumber=" + req.OrderID
+		query = "?clientReferenceNumber=" + url.QueryEscape(req.OrderID)
 	default:
 		return core.InquiryResponse{}, core.NewError(Name, "inquiry", core.ErrInvalidRequest).
 			WithMessage("token (purchase id) or order id is required")
@@ -395,6 +403,12 @@ func (g *Gateway) ParseCallback(r *http.Request) (core.Callback, error) {
 // when Jibit reports that it expired.
 func (g *Gateway) authorized(ctx context.Context, method, endpoint string, body any, out any) (transport.Response, error) {
 	return g.auth.JSON(ctx, method, endpoint, body, nil, out)
+}
+
+// authorizedOnce is [Gateway.authorized] for the calls that move money back,
+// which must never be replayed by the retry policy.
+func (g *Gateway) authorizedOnce(ctx context.Context, method, endpoint string, body any, out any) (transport.Response, error) {
+	return g.auth.NoRetry().JSON(ctx, method, endpoint, body, nil, out)
 }
 
 // fetchToken exchanges the API key and the secret key for an access token.

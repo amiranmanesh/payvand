@@ -325,3 +325,49 @@ func TestNewValidatesTheCredentials(t *testing.T) {
 		t.Fatalf("error = %v, want ErrInvalidConfig", err)
 	}
 }
+
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	oauthPath, oauthHandler := oauth()
+	server := testutil.NewServer(t, testutil.Routes{
+		oauthPath: oauthHandler,
+		"/digipay/api/purchases/verify/trk-9": testutil.JSON(
+			`{"trackingCode":"trk-9","providerId":"3003","amount":"300000","rrn":"889900",
+			"result":{"status":0}}`),
+	})
+	gw, _ := digipay.New(merchant, core.WithBaseURL(server.URL))
+
+	callback, _ := gw.ParseCallback(httptest.NewRequest(http.MethodGet,
+		"/cb?result=SUCCESS&trackingCode=trk-9&providerId=3003&type=13&amount=3000000", nil))
+
+	_, err := gw.Verify(context.Background(), callback.VerifyRequest(core.Rial(3_000_000)))
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}
+
+func TestVerifyEscapesTheCallbackTrackingCode(t *testing.T) {
+	var gotPath, gotQuery string
+	oauthPath, oauthHandler := oauth()
+	server := testutil.NewServer(t, testutil.Routes{
+		oauthPath: oauthHandler,
+		"/digipay/api/purchases/verify/": func(w http.ResponseWriter, r *http.Request) {
+			gotPath, gotQuery = r.URL.Path, r.URL.Query().Get("type")
+			testutil.JSON(`{"trackingCode":"x","amount":"3000000","result":{"status":0}}`)(w, r)
+		},
+	})
+	gw, _ := digipay.New(merchant, core.WithBaseURL(server.URL), digipay.WithTicketType(digipay.TypeWallet))
+
+	// A payer who puts "?type=0" inside the tracking code must not be able to
+	// choose the product the merchant verifies against.
+	callback, _ := gw.ParseCallback(httptest.NewRequest(http.MethodGet,
+		"/cb?result=SUCCESS&trackingCode=trk%3Ftype%3D999&type=13&amount=3000000", nil))
+
+	_, _ = gw.Verify(context.Background(), callback.VerifyRequest(core.Rial(3_000_000)))
+
+	if gotQuery == "999" {
+		t.Fatalf("the tracking code overrode the type parameter: path=%q query=%q", gotPath, gotQuery)
+	}
+	if !strings.Contains(gotPath, "type") {
+		t.Logf("path = %q", gotPath)
+	}
+}

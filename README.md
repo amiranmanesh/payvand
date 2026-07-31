@@ -304,7 +304,14 @@ in three places and nowhere else:
   and wrong for a shop.
 - **Settlement can be a second call.** `snapppay` verifies *and* settles inside
   `Verify`; turn the second half off with `snapppay.WithAutoSettle(false)` when
-  your own code settles later.
+  your own code settles later. SnappPay reverts a payment that is verified and
+  never settled, so this is not optional there.
+
+  `torobpay` serves the same endpoint paths but is treated here as settling on
+  its own, and `Verify` makes the one call. **Ask TorobPay which your contract
+  is**, and switch `torobpay.WithSettle(true)` on if it expects the second call:
+  a reversal for a missing settlement only surfaces once the window closes, long
+  after a test payment looks successful.
 - **Delivery matters.** Digipay only starts collecting instalments once the
   order is reported as shipped with `digipay.Deliver`.
 
@@ -493,7 +500,7 @@ A tour of what each package offers:
 | `top` | `WithAdditionalInfo`, `WithUserID`, `WithSetData` |
 | `jibit` | `WithWage`, `WithUserIdentifier`, `WithPayerCardMatching`, `WithCancellableRefunds`, `WithAdditionalData`, `WithDefaultDescription` |
 | `snapppay` | `WithCart`, `WithCartBuilder`, `WithDefaultCategory`, `WithPaymentMethod`, `WithAutoSettle`, `WithScope` |
-| `torobpay` | `WithCart`, `WithCartBuilder`, `WithDefaultCategory`, `WithPaymentMethod` |
+| `torobpay` | `WithCart`, `WithCartBuilder`, `WithDefaultCategory`, `WithPaymentMethod`, `WithSettle` |
 | `digipay` | `WithTicketType`, `WithAgent`, `WithAPIVersion`, `WithPreferredGateway`, `WithBasket`, `WithBasketBuilder`, `WithSplitDetails` |
 | `tara` | `WithServiceID`, `WithInvoiceItems`, `WithInvoiceBuilder`, `WithDefaultGroup`, `WithDefaultUnit`, `WithClientIP` |
 | `virtual` | `WithDecline`, `WithRedirectURL`, `WithFailingVerify` |
@@ -533,6 +540,13 @@ case errors.Is(err, payvand.ErrPaymentFailed):
 | `ErrAlreadyVerified` | the transaction was verified before |
 | `ErrAmountMismatch` | the settled amount differs from the requested one |
 | `ErrUnexpectedResponse` | the provider answered with something unreadable |
+
+Both of the first two are worth handling explicitly. `ErrAlreadyVerified` is
+what a refreshed callback page looks like on every gateway whose provider
+signals it, so treat it as "already paid" rather than as a failure — never as a
+reason to fulfil the order a second time. `ErrAmountMismatch` means the payment
+settled for something other than what was ordered, which is the shape a replayed
+token takes: stop, and reconcile by hand.
 
 Gateways that publish a code table expose it as a function — `mellat.Message`,
 `irankish.Message`, `saman.Message`, `nextpay.Message`, `bitpay.Message` — with

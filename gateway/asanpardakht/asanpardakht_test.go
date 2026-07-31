@@ -110,9 +110,56 @@ func TestVerifyDetectsAmountMismatch(t *testing.T) {
 	}
 }
 
+func TestVerifyRejectsCallbackSuppliedTranID(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		// The invoice was never paid, so the provider reports no transaction.
+		"/v1/TranResult": testutil.JSON(`{"payGateTranID":0,"amount":0}`),
+	})
+	gw := newGateway(t, server.URL)
+
+	// A payer returning with ?pay_gate_tran_id=999888 lands here through
+	// Callback.VerifyRequest, which copies the callback map into Extra.
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{
+		OrderID: "1001",
+		Amount:  core.Rial(150_000),
+		Extra:   map[string]string{asanpardakht.PayGateTranIDKey: "999888"},
+	})
+	if !errors.Is(err, core.ErrInvalidRequest) {
+		t.Fatalf("error = %v, want ErrInvalidRequest", err)
+	}
+}
+
+func TestVerifyRejectsMissingProviderAmount(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/v1/TranResult": testutil.JSON(`{"payGateTranID":556677,"amount":0}`),
+	})
+	gw := newGateway(t, server.URL)
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{OrderID: "1001", Amount: core.Rial(150_000)})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}
+
+func TestRefundRejectsTranIDThatIsNotTheInvoices(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/v1/TranResult": testutil.JSON(`{"payGateTranID":556677,"amount":150000}`),
+	})
+	gw := newGateway(t, server.URL)
+
+	_, err := gw.Refund(context.Background(), core.RefundRequest{
+		OrderID: "1001",
+		Extra:   map[string]string{asanpardakht.PayGateTranIDKey: "999888"},
+	})
+	if !errors.Is(err, core.ErrInvalidRequest) {
+		t.Fatalf("error = %v, want ErrInvalidRequest", err)
+	}
+}
+
 func TestRefundReverses(t *testing.T) {
 	reversed := false
 	server := testutil.NewServer(t, testutil.Routes{
+		"/v1/TranResult": testutil.JSON(`{"payGateTranID":556677,"amount":150000}`),
 		"/v1/Reverse": func(w http.ResponseWriter, _ *http.Request) {
 			reversed = true
 			w.WriteHeader(http.StatusOK)
@@ -134,6 +181,7 @@ func TestRefundReverses(t *testing.T) {
 func TestRefundCancelsWhenConfigured(t *testing.T) {
 	canceled := false
 	server := testutil.NewServer(t, testutil.Routes{
+		"/v1/TranResult": testutil.JSON(`{"payGateTranID":556677,"amount":150000}`),
 		"/v1/Cancel": func(w http.ResponseWriter, _ *http.Request) {
 			canceled = true
 			w.WriteHeader(http.StatusOK)

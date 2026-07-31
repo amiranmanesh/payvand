@@ -54,7 +54,12 @@ Payvand handles money and terminal credentials, so the interesting classes are:
   on the transaction afterwards.
 - Keep terminal keys out of the repository. `.gitignore` already excludes
   `*.pem`, `*.key`, `*.p12` and `keys/`.
-- `Raw`, `PurchaseResponse.Extra` and the logger receive provider payloads.
-  Redact them before they reach a log aggregator.
+- The logger receives request and response bodies with the credential fields
+  masked — Iranian gateways authenticate on the body, so Mellat's
+  `userPassword`, Parsian's `LoginAccount`, Pay.ir's `api`, Zibal's `merchant`,
+  TOP's `Pin` and the OAuth password grants never reach it. `Raw` and
+  `PurchaseResponse.Extra` are **not** masked: they carry the provider's answer
+  verbatim for support and auditing, so redact them yourself before they reach
+  a log aggregator.
 - Leave `WithSkipTLSVerify` off unless a Shaparak host genuinely serves an
   incomplete chain, and scope it to that gateway only.

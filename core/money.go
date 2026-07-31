@@ -78,6 +78,39 @@ func (m Money) In(c Currency) Money {
 // IsZero reports whether the amount is zero (in any unit).
 func (m Money) IsZero() bool { return m.Amount == 0 }
 
+// Equal reports whether two amounts are worth the same, whatever unit each of
+// them is expressed in.
+func (m Money) Equal(other Money) bool { return m.Rial() == other.Rial() }
+
+// SettledAmount reconciles the amount a provider reports for a payment with the
+// amount the caller asked to verify, and is the amount every [Gateway.Verify]
+// must report.
+//
+// Verifying is the moment the merchant learns what it was actually paid, and
+// the request amount comes from the merchant's own order while the reported one
+// comes from the provider. When they disagree, the payment settled for
+// something other than what was ordered — an error wrapping [ErrAmountMismatch]
+// is the only safe answer, because the alternative is a caller shipping goods
+// against a cheaper payment replayed onto the order.
+//
+// A non-positive amount on either side means "not stated": providers that echo
+// no amount leave nothing to compare, and callers that pass none are asking to
+// be told rather than checked. Gateways whose provider always states an amount
+// should reject a missing one themselves rather than rely on this.
+func SettledAmount(gateway Name, requested, reported Money) (Money, error) {
+	switch {
+	case reported.Amount <= 0:
+		return requested, nil
+	case requested.Amount <= 0:
+		return reported, nil
+	case !reported.Equal(requested):
+		return Money{}, NewError(gateway, "verify", ErrAmountMismatch).
+			WithMessage("the provider settled " + reported.String() + ", not " + requested.String())
+	default:
+		return reported, nil
+	}
+}
+
 // String renders the amount and its unit, e.g. "15000 IRT".
 func (m Money) String() string {
 	return strconv.FormatInt(m.Amount, 10) + " " + m.Currency.String()

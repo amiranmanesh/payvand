@@ -271,7 +271,7 @@ func (g *Gateway) Refund(ctx context.Context, req core.RefundRequest) (core.Refu
 	}
 
 	var out reversalResponse
-	res, err := soap.Do(ctx, g.client, soap.Call{
+	res, err := soap.Do(ctx, g.client.NoRetry(), soap.Call{
 		Endpoint:  transport.JoinURL(g.baseURL, reversalPath),
 		Action:    reversalNamespace + "/ReversalRequest",
 		Namespace: reversalNamespace,

@@ -200,9 +200,13 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithMessage(describe(out.Description, out.Message, "tara did not verify the payment"))
 	}
 
-	amount := req.Amount
-	if parsed, err := strconv.ParseInt(out.Amount.String(), 10, 64); err == nil && parsed > 0 {
-		amount = core.Rial(parsed)
+	var reported core.Money
+	if parsed, convErr := strconv.ParseInt(out.Amount.String(), 10, 64); convErr == nil {
+		reported = core.Rial(parsed)
+	}
+	amount, err := core.SettledAmount(Name, req.Amount, reported)
+	if err != nil {
+		return core.VerifyResponse{}, err
 	}
 	card := out.CardNumber
 	if card == "" {
