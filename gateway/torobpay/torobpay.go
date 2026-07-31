@@ -35,6 +35,7 @@ const (
 	oauthPath  = "/api/online/v1/oauth/token"
 	tokenPath  = "/api/online/payment/v1/token"
 	verifyPath = "/api/online/payment/v1/verify"
+	settlePath = "/api/online/payment/v1/settle"
 	revertPath = "/api/online/payment/v1/revert"
 	statusPath = "/api/online/payment/v1/status"
 	cancelPath = "/api/online/payment/v1/cancel"
@@ -153,8 +154,16 @@ func (g *Gateway) Purchase(ctx context.Context, req core.PurchaseRequest) (core.
 	}, nil
 }
 
-// Verify confirms a completed payment. TorobPay settles the credit itself, so
-// a successful verification is the end of the flow.
+// Verify confirms a completed payment.
+//
+// Whether that is the end of the flow depends on the contract: this package
+// assumes TorobPay settles the credit itself, which is how the gateway has
+// always behaved here. Its sibling SnappPay serves the same endpoint paths and
+// does require a separate settle call, reverting anything left unsettled, so
+// confirm which of the two your contract follows and turn [WithSettle] on if
+// TorobPay expects the second call. Settling a payment that needs no settling
+// is an error from the provider; not settling one that does is a payment the
+// merchant never receives.
 func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.VerifyResponse, error) {
 	if req.Token == "" {
 		return core.VerifyResponse{}, core.NewError(Name, "verify", core.ErrInvalidRequest).
@@ -169,6 +178,19 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 	amount, err := core.SettledAmount(Name, req.Amount, core.Rial(verified.Amount))
 	if err != nil {
 		return core.VerifyResponse{}, err
+	}
+	if g.settings.settle {
+		settled, settleRes, settleErr := g.call(ctx, "verify", settlePath, req.Token)
+		if settleErr != nil {
+			return core.VerifyResponse{}, settleErr
+		}
+		res = settleRes
+		if settled.ReferenceNumber != "" {
+			verified.ReferenceNumber = settled.ReferenceNumber
+		}
+		if settled.TransactionID != "" {
+			verified.TransactionID = settled.TransactionID
+		}
 	}
 	reference := verified.ReferenceNumber
 	if reference == "" {

@@ -59,6 +59,8 @@ type config struct {
 	cartBuilder CartBuilder
 	// defaultCategory is used by the default cart builder.
 	defaultCategory string
+	// settle asks for the separate settlement call after a verification.
+	settle bool
 }
 
 // settings returns the TorobPay option state of o, creating it on first use.
@@ -86,4 +88,18 @@ func WithCart(carts ...Cart) core.Option {
 // WithDefaultCategory sets the product category the default cart builder uses.
 func WithDefaultCategory(category string) core.Option {
 	return func(o *core.Options) { settings(o).defaultCategory = category }
+}
+
+// WithSettle makes [core.Gateway.Verify] follow the verification with the
+// settlement call.
+//
+// It is off by default because this package has always treated verification as
+// the end of the TorobPay flow. Turn it on if your contract says otherwise —
+// SnappPay, which serves the same endpoint paths, reverts any payment that is
+// verified and never settled, and a payment lost that way is not recoverable
+// from the merchant's side. Ask TorobPay which of the two your terminal
+// follows rather than guessing from the behaviour of a test payment, since the
+// reversal only shows up once the settlement window closes.
+func WithSettle(enabled bool) core.Option {
+	return func(o *core.Options) { settings(o).settle = enabled }
 }

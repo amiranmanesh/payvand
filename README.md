@@ -304,7 +304,14 @@ in three places and nowhere else:
   and wrong for a shop.
 - **Settlement can be a second call.** `snapppay` verifies *and* settles inside
   `Verify`; turn the second half off with `snapppay.WithAutoSettle(false)` when
-  your own code settles later.
+  your own code settles later. SnappPay reverts a payment that is verified and
+  never settled, so this is not optional there.
+
+  `torobpay` serves the same endpoint paths but is treated here as settling on
+  its own, and `Verify` makes the one call. **Ask TorobPay which your contract
+  is**, and switch `torobpay.WithSettle(true)` on if it expects the second call:
+  a reversal for a missing settlement only surfaces once the window closes, long
+  after a test payment looks successful.
 - **Delivery matters.** Digipay only starts collecting instalments once the
   order is reported as shipped with `digipay.Deliver`.
 
@@ -493,7 +500,7 @@ A tour of what each package offers:
 | `top` | `WithAdditionalInfo`, `WithUserID`, `WithSetData` |
 | `jibit` | `WithWage`, `WithUserIdentifier`, `WithPayerCardMatching`, `WithCancellableRefunds`, `WithAdditionalData`, `WithDefaultDescription` |
 | `snapppay` | `WithCart`, `WithCartBuilder`, `WithDefaultCategory`, `WithPaymentMethod`, `WithAutoSettle`, `WithScope` |
-| `torobpay` | `WithCart`, `WithCartBuilder`, `WithDefaultCategory`, `WithPaymentMethod` |
+| `torobpay` | `WithCart`, `WithCartBuilder`, `WithDefaultCategory`, `WithPaymentMethod`, `WithSettle` |
 | `digipay` | `WithTicketType`, `WithAgent`, `WithAPIVersion`, `WithPreferredGateway`, `WithBasket`, `WithBasketBuilder`, `WithSplitDetails` |
 | `tara` | `WithServiceID`, `WithInvoiceItems`, `WithInvoiceBuilder`, `WithDefaultGroup`, `WithDefaultUnit`, `WithClientIP` |
 | `virtual` | `WithDecline`, `WithRedirectURL`, `WithFailingVerify` |

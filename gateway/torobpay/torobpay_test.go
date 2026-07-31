@@ -242,3 +242,45 @@ func TestVerifyDetectsAmountMismatch(t *testing.T) {
 		t.Fatalf("error = %v, want ErrAmountMismatch", err)
 	}
 }
+
+func TestVerifySettlesWhenAsked(t *testing.T) {
+	settled := false
+	oauthPath, oauthHandler := oauth()
+	server := testutil.NewServer(t, testutil.Routes{
+		oauthPath: oauthHandler,
+		"/api/online/payment/v1/verify": testutil.JSON(
+			`{"successful":true,"response":{"amount":150000,"transactionId":"tr-1"}}`),
+		"/api/online/payment/v1/settle": func(w http.ResponseWriter, r *http.Request) {
+			settled = true
+			testutil.JSON(`{"successful":true,"response":{"transactionId":"tr-2"}}`)(w, r)
+		},
+	})
+	gw, _ := torobpay.New(merchant, core.WithBaseURL(server.URL), torobpay.WithSettle(true))
+
+	res, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "tok-1", Amount: core.Rial(150_000)})
+	if err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+	if !settled {
+		t.Fatal("the settle endpoint was not called")
+	}
+	if res.TransactionID != "tr-2" {
+		t.Errorf("transaction = %q, want the settled one", res.TransactionID)
+	}
+}
+
+func TestVerifyDoesNotSettleByDefault(t *testing.T) {
+	oauthPath, oauthHandler := oauth()
+	server := testutil.NewServer(t, testutil.Routes{
+		oauthPath: oauthHandler,
+		"/api/online/payment/v1/verify": testutil.JSON(
+			`{"successful":true,"response":{"amount":150000,"transactionId":"tr-1"}}`),
+	})
+	gw, _ := torobpay.New(merchant, core.WithBaseURL(server.URL))
+
+	if _, err := gw.Verify(context.Background(), core.VerifyRequest{
+		Token: "tok-1", Amount: core.Rial(150_000),
+	}); err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+}
