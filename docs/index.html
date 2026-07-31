@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Payvand — one Go interface for every Iranian payment gateway</title>
-<meta name="description" content="Payvand is a dependency-free Go package that puts twenty Iranian internet payment gateways behind a single interface: purchase, verify, refund, inquiry and callback parsing.">
+<meta name="description" content="Payvand is a dependency-free Go package that puts twenty-five Iranian internet payment gateways — card acquirers, PSPs and the buy-now-pay-later providers — behind a single interface: purchase, verify, refund, inquiry and callback parsing.">
 <meta property="og:title" content="Payvand">
 <meta property="og:description" content="One Go interface for every Iranian payment gateway. Zero dependencies.">
 <meta property="og:type" content="website">
@@ -154,11 +154,12 @@
 <div class="wrap hero">
   <h1>One interface for every<br>Iranian payment gateway</h1>
   <p class="lead">
-    Payvand puts twenty IPGs — bank acquirers, PSPs and aggregators — behind a
+    Payvand puts twenty-five IPGs — bank acquirers, PSPs, aggregators and the
+    buy-now-pay-later providers — behind a
     single Go interface. Switching provider is a value change, not a code change.
   </p>
   <div class="badges">
-    <span class="badge">20 gateways</span>
+    <span class="badge">25 gateways</span>
     <span class="badge">zero dependencies</span>
     <span class="badge">Go 1.26+</span>
     <span class="badge">MIT</span>
@@ -252,7 +253,7 @@ verified, err := gw.<span class="kw">Verify</span>(ctx, cb.VerifyRequest(order.A
 <section id="gateways">
   <div class="wrap">
     <h2>Supported gateways</h2>
-    <p class="sub">All twenty are implemented and covered by tests.</p>
+    <p class="sub">All twenty-five are implemented and covered by tests.</p>
     <div class="scroll">
     <table>
       <thead>
@@ -278,6 +279,11 @@ verified, err := gw.<span class="kw">Verify</span>(ctx, cb.VerifyRequest(order.A
         <tr><td>AsanPardakht</td><td><code>AsanPardakht</code></td><td>REST v1</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
         <tr><td>Sepehr · Bank Saderat</td><td><code>Sepehr</code></td><td>REST</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
         <tr><td>TOP</td><td><code>Top</code></td><td>REST, in-app</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+        <tr><td>Jibit · PPG v3</td><td><code>Jibit</code></td><td>OAuth REST</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>SnappPay</td><td><code>SnappPay</code></td><td>OAuth REST, BNPL</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>TorobPay</td><td><code>TorobPay</code></td><td>OAuth REST, BNPL</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
+        <tr><td>Digipay</td><td><code>DigiPay</code></td><td>OAuth REST, wallet/BNPL</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="y">✓</td></tr>
+        <tr><td>Tara</td><td><code>Tara</code></td><td>OAuth REST, club credit</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="y">✓</td></tr>
         <tr><td>Virtual</td><td><code>Virtual</code></td><td>in-memory</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
       </tbody>
     </table>

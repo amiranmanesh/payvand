@@ -4,8 +4,9 @@
 
 Payvand (پیوند — *the link*) is a Go package that puts every Iranian internet
 payment gateway (IPG) behind a single, strategy-pattern interface: bank
-acquirers, PSPs and aggregators all answer the same five methods. Swapping
-Zarinpal for Mellat is a value change, not a code change.
+acquirers, PSPs, aggregators and the buy-now-pay-later providers all answer the
+same five methods. Swapping Zarinpal for Mellat — or for SnappPay — is a value
+change, not a code change.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/amiranmanesh/payvand.svg)](https://pkg.go.dev/github.com/amiranmanesh/payvand)
 ![Go 1.26+](https://img.shields.io/badge/go-1.26%2B-00ADD8)
@@ -227,6 +228,7 @@ flowchart TB
         asanpardakht, top"]
         signed["signed REST: sadad (3DES), irankish (RSA+AES), pasargad (RSA)"]
         soap["SOAP: parsian, mellat"]
+        oauth["OAuth REST: jibit, snapppay, torobpay, digipay, tara"]
         virt["virtual — in-memory, for tests"]
     end
 
@@ -234,6 +236,7 @@ flowchart TB
         transport["transport: net/http, retry, logging"]
         soaplib["soap: encoding/xml envelopes"]
         crypto["cryptox: 3DES, AES-CBC, RSA, PKCS#7"]
+        tokens["tokenauth: bearer token cache + replay"]
         gwopt["gwopt: per-gateway option storage"]
     end
 
@@ -255,7 +258,7 @@ Each gateway package holds three files, always the same shape:
 
 ## Supported gateways
 
-All twenty are implemented and covered by tests.
+All twenty-five are implemented and covered by tests.
 
 | Gateway | `payvand.…` | Kind | Redirect | Verify | Refund | Inquiry | Callback | Split settlement |
 |---|---|---|---|---|---|---|---|---|
@@ -278,10 +281,35 @@ All twenty are implemented and covered by tests.
 | AsanPardakht | `AsanPardakht` | REST v1 | POST | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Sepehr / Saderat | `Sepehr` | REST | POST | ✅ | ✅ | ➖ | ✅ | ➖ |
 | TOP (Taban Ati Pardaz) | `Top` | REST, in-app | in-app | ✅ | ➖ | ✅ | ➖ | ➖ |
+| Jibit (PPG v3) | `Jibit` | OAuth REST | GET | ✅ | ✅ | ✅ | ✅ | ➖ |
+| SnappPay | `SnappPay` | OAuth REST, BNPL | GET | ✅ | ✅ | ✅ | ✅ | ➖ |
+| TorobPay | `TorobPay` | OAuth REST, BNPL | GET | ✅ | ✅ | ✅ | ✅ | ➖ |
+| Digipay | `DigiPay` | OAuth REST, wallet/BNPL | GET | ✅ | ✅ | ➖ | ✅ | ✅ (split) |
+| Tara | `Tara` | OAuth REST, club credit | POST | ✅ | ➖ | ➖ | ✅ | ✅ (services) |
 | Virtual (development) | `Virtual` | in-memory | GET | ✅ | ✅ | ✅ | ✅ | ➖ |
 
 ✅ supported · ➖ the provider offers no such API to merchants (the call returns
 `payvand.ErrNotSupported`, and `Capabilities()` says so up front).
+
+### Buy now, pay later
+
+The last five providers lend rather than move money from a card, which shows up
+in three places and nowhere else:
+
+- **A basket is mandatory.** SnappPay, TorobPay, Digipay (credit and BNPL
+  tickets) and Tara decide the credit from the goods, so each of them accepts a
+  builder — `snapppay.WithCartBuilder`, `torobpay.WithCartBuilder`,
+  `digipay.WithBasketBuilder`, `tara.WithInvoiceBuilder`. Leave it unset and
+  Payvand sends one line covering the whole order, which is right for a top-up
+  and wrong for a shop.
+- **Settlement can be a second call.** `snapppay` verifies *and* settles inside
+  `Verify`; turn the second half off with `snapppay.WithAutoSettle(false)` when
+  your own code settles later.
+- **Delivery matters.** Digipay only starts collecting instalments once the
+  order is reported as shipped with `digipay.Deliver`.
+
+Everything else — `Purchase`, `Verify`, `Refund`, `ParseCallback`, the redirect,
+the errors — is the interface every other gateway implements.
 
 ---
 
@@ -312,6 +340,11 @@ you wire it, not when a customer pays.
 | AsanPardakht | | merchant configuration id | | `usr` | `pwd` | |
 | Sepehr | | | terminal id | | | |
 | TOP | EShop pin | | | | | |
+| Jibit | API key | | | | secret key | |
+| SnappPay | OAuth client secret | OAuth client id | | merchant user | merchant password | |
+| TorobPay | OAuth client secret | OAuth client id | | merchant user | merchant password | |
+| Digipay | OAuth client secret | OAuth client id | | merchant user | merchant password | |
+| Tara | | | | merchant user | merchant password | |
 | Virtual | — | — | — | — | — | — |
 
 Anything a provider needs beyond these goes into `Config.Extra`, and every
@@ -458,6 +491,11 @@ A tour of what each package offers:
 | `asanpardakht` | `WithServiceType`, `WithPaymentID`, `WithSettlements`, `WithAdditionalData`, `WithoutSettlement`, `WithCancelInsteadOfReverse` |
 | `sepehr` | `WithPayload`, `WithPayerDetails` |
 | `top` | `WithAdditionalInfo`, `WithUserID`, `WithSetData` |
+| `jibit` | `WithWage`, `WithUserIdentifier`, `WithPayerCardMatching`, `WithCancellableRefunds`, `WithAdditionalData`, `WithDefaultDescription` |
+| `snapppay` | `WithCart`, `WithCartBuilder`, `WithDefaultCategory`, `WithPaymentMethod`, `WithAutoSettle`, `WithScope` |
+| `torobpay` | `WithCart`, `WithCartBuilder`, `WithDefaultCategory`, `WithPaymentMethod` |
+| `digipay` | `WithTicketType`, `WithAgent`, `WithAPIVersion`, `WithPreferredGateway`, `WithBasket`, `WithBasketBuilder`, `WithSplitDetails` |
+| `tara` | `WithServiceID`, `WithInvoiceItems`, `WithInvoiceBuilder`, `WithDefaultGroup`, `WithDefaultUnit`, `WithClientIP` |
 | `virtual` | `WithDecline`, `WithRedirectURL`, `WithFailingVerify` |
 
 Nothing here is mandatory: leave an option out and the parameter is simply not
@@ -613,11 +651,13 @@ payvand/
 │   ├── zarinpal/  zibal/   vandar/  payweb/  idpay/    payir/
 │   ├── nextpay/   payping/ bitpay/  yekpay/  sadad/    parsian/
 │   ├── irankish/  top/     mellat/  saman/   pasargad/
+│   ├── jibit/     snapppay/ torobpay/ digipay/ tara/
 │   └── asanpardakht/ sepehr/ virtual/
 ├── internal/
 │   ├── transport/        # net/http plumbing: retry, timeout, logging
 │   ├── soap/             # SOAP 1.1 envelopes on encoding/xml
 │   ├── cryptox/          # 3DES-ECB, AES-CBC, RSA sign/encrypt, PKCS#7, .NET XML keys
+│   ├── tokenauth/        # bearer token cache, renew-and-replay on 401
 │   ├── gwopt/            # per-gateway option storage
 │   └── testutil/         # the fake provider the tests are written against
 ├── examples/             # basic, multigateway, webshop
@@ -632,9 +672,12 @@ payvand/
 ### Done
 
 - [x] Provider independent `Gateway` interface with capability reporting
-- [x] 19 real gateways plus an in-memory virtual one
+- [x] 24 real gateways plus an in-memory virtual one
+- [x] Buy-now-pay-later providers behind the same interface: SnappPay, TorobPay, Digipay, Tara
+- [x] Jibit's proxy payment gateway, with reversal and partial refunds
 - [x] Purchase, verify, refund, inquiry and callback parsing
-- [x] Multi-step settlement handled inside `Verify` (Mellat, AsanPardakht, Vandar, Pasargad)
+- [x] Multi-step settlement handled inside `Verify` (Mellat, AsanPardakht, Vandar, Pasargad, SnappPay)
+- [x] OAuth bearer tokens cached and renewed transparently
 - [x] Split settlement for Zarinpal, Zibal, Parsian and AsanPardakht
 - [x] SOAP client, 3DES/AES/RSA envelopes and .NET XML key support, all on the standard library
 - [x] Rial/Toman handling per provider
@@ -649,7 +692,7 @@ payvand/
 - [ ] Zarinpal refunds through the merchant OAuth token
 - [ ] Sadad and Iran Kish reversal endpoints, once the contracts are confirmed
 - [ ] IDPay and Zibal panel-level refunds
-- [ ] Digipay, Jibit, Shepa, Rayanpay and Sepal gateways
+- [ ] Azki, Shepa, Rayanpay and Sepal gateways
 - [ ] Bill payment and instalment transaction types where the provider offers them
 - [ ] A recovery helper that reconciles lost callbacks through `Inquiry`
 - [ ] Idempotency keys for retried purchases

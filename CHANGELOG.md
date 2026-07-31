@@ -8,6 +8,49 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Nothing yet.
 
+## [1.1.0] — 2026-07-31
+
+Five new providers, four of which lend rather than move money from a card. The
+public API is unchanged: the buy-now-pay-later gateways implement the same
+`Gateway` interface, so an existing call site reaches them by name alone.
+
+### Added
+
+**Gateways (5)**
+
+- `jibit` — Jibit's proxy payment gateway (PPG v3): purchase, verify, inquiry,
+  partial refunds and `Reverse` for a payment that was taken but not verified.
+- `snapppay` — SnappPay's online instalments, with `Eligible` for the
+  pre-checkout credit decision, verification and settlement in one `Verify`,
+  `Settle`, `Cancel` and `Update`.
+- `torobpay` — TorobPay's four-instalment online credit, with `Cancel` and the
+  status inquiry.
+- `digipay` — Digipay's wallet, credit, BNPL, credit-card and IPG products,
+  selected with the ticket type, plus `Reverse`, `Deliver` and `RefundStatus`.
+- `tara` — Tara's club credit, with the itemised invoice it settles against and
+  the POST form it redirects with.
+
+**Provider features**
+
+- Basket and invoice builders, so the BNPL providers see the real order lines:
+  `snapppay.WithCartBuilder`, `torobpay.WithCartBuilder`,
+  `digipay.WithBasketBuilder`, `tara.WithInvoiceBuilder`. Each has a default
+  that sends a single line covering the whole order.
+- SnappPay's settlement runs inside `Verify` and can be deferred with
+  `snapppay.WithAutoSettle(false)`.
+- Digipay verifies against the ticket type reported by the callback, so a payer
+  who switched product inside the Digipay app is still verified correctly.
+
+**Internal**
+
+- `internal/tokenauth`, a bearer token cache that authenticates lazily, renews
+  a rejected token and replays the call exactly once.
+
+### Notes
+
+- Still no dependencies: the OAuth password grants, the multipart form Digipay
+  wants and the token cache are all standard library.
+
 ## [1.0.0] — 2026-07-31
 
 First stable release. The public API of `payvand` and `payvand/core` is frozen
@@ -74,5 +117,6 @@ for the whole 1.x line.
   stay that way.
 - Go 1.26 or newer is required.
 
-[Unreleased]: https://github.com/amiranmanesh/payvand/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/amiranmanesh/payvand/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/amiranmanesh/payvand/releases/tag/v1.1.0
 [1.0.0]: https://github.com/amiranmanesh/payvand/releases/tag/v1.0.0
