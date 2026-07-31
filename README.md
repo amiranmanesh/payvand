@@ -182,6 +182,12 @@ sequenceDiagram
 > transaction that is never verified, and some (Mellat, AsanPardakht) need an
 > extra settlement call, which Payvand makes for you inside `Verify`.
 
+> **`Verify` is also the amount check.** It compares what the provider says it
+> settled against the amount you passed in, and refuses the settlement with
+> `ErrAmountMismatch` when they disagree — which is what a token replayed from
+> a cheaper payment looks like. Pass the amount from your own order record, not
+> from the callback, and that check is doing real work for you.
+
 State as Payvand reports it through `Inquiry`:
 
 ```mermaid
@@ -440,6 +446,27 @@ verified, err := gw.Verify(ctx, cb.VerifyRequest(order.Amount))
 `cb.VerifyRequest(amount)` copies every field the provider will need —
 including the ones only that provider uses — and takes the amount from you
 rather than from the request.
+
+The callback map travels into `VerifyRequest.Extra` unfiltered, because
+gateways need the provider specific fields out of it. Everything security
+relevant is decided against your own records or against what the provider says
+on its own API, never against a value that came back through the browser — but
+it does mean you should not read a settlement decision out of `Extra` yourself
+either.
+
+A payer who refreshes that page sends the callback twice. The second `Verify`
+answers `ErrAlreadyVerified` on every provider that signals it, so handle that
+case explicitly and do not fulfil the order again:
+
+```go
+verified, err := gw.Verify(ctx, cb.VerifyRequest(order.Amount))
+switch {
+case errors.Is(err, payvand.ErrAlreadyVerified):
+	// already paid; answer from what you stored the first time
+case err != nil:
+	// not paid
+}
+```
 
 ---
 

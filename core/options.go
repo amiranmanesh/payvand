@@ -9,8 +9,10 @@ import (
 // one. Iranian PSP endpoints are slow, hence the generous default.
 const DefaultTimeout = 30 * time.Second
 
-// DefaultUserAgent is sent with every request unless overridden.
-const DefaultUserAgent = "payvand-go/1.0"
+// DefaultUserAgent is sent with every request unless overridden. It carries the
+// minor version, so a provider reading its access logs can tell which
+// verification behaviour a merchant is running.
+const DefaultUserAgent = "payvand-go/1.2"
 
 // Doer is the subset of [http.Client] Payvand needs. Supplying your own
 // implementation is how you plug in tracing, mocking or a proxy.

@@ -6,9 +6,22 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.2.0] — 2026-07-31
+
 A security and money-safety pass over every gateway. Two changes alter what
 `Verify` returns for flows that used to look successful; both are listed under
 Changed, and both were returning success for something that was not one.
+
+**Upgrade before the next settlement run.** The signatures are unchanged, so
+`go get -u` is the whole upgrade, but read Changed first: code that only tests
+`err != nil` will start seeing errors for repeated callbacks. That is the
+point — the alternative was fulfilling those orders twice.
+
+This is a minor release rather than a major one on purpose. The behaviour that
+changed was unsafe, and a `/v2` import path would leave everyone who does not
+notice it on the version with the holes in it.
 
 ### Security
 
@@ -182,6 +195,7 @@ for the whole 1.x line.
   stay that way.
 - Go 1.26 or newer is required.
 
-[Unreleased]: https://github.com/amiranmanesh/payvand/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/amiranmanesh/payvand/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/amiranmanesh/payvand/releases/tag/v1.2.0
 [1.1.0]: https://github.com/amiranmanesh/payvand/releases/tag/v1.1.0
 [1.0.0]: https://github.com/amiranmanesh/payvand/releases/tag/v1.0.0

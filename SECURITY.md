@@ -4,8 +4,14 @@
 
 | Version | Supported |
 |---|---|
-| 1.x | ✅ |
+| 1.2.x | ✅ |
+| 1.0.x – 1.1.x | ❌ — upgrade |
 | < 1.0 | ❌ |
+
+Releases before 1.2.0 verify payments without comparing the settled amount to
+the ordered one, which lets a payment token replayed onto another order verify
+cleanly; AsanPardakht and Sepehr additionally accept a settlement key chosen by
+the payer. See the [1.2.0 changelog](CHANGELOG.md) for the full list.
 
 ## Reporting a vulnerability
 
