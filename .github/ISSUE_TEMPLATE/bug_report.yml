@@ -1,0 +1,80 @@
+name: Bug report
+description: Something in Payvand behaves differently from what the provider does
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Redact everything sensitive** before pasting: merchant keys, terminal
+        passwords, tokens, card numbers and IBANs.
+
+  - type: input
+    id: version
+    attributes:
+      label: Payvand version
+      placeholder: v1.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: gateway
+    attributes:
+      label: Gateway
+      options:
+        - asanpardakht
+        - bitpay
+        - idpay
+        - irankish
+        - mellat
+        - nextpay
+        - parsian
+        - pasargad
+        - payir
+        - payping
+        - payweb
+        - sadad
+        - saman
+        - sepehr
+        - top
+        - vandar
+        - virtual
+        - yekpay
+        - zarinpal
+        - zibal
+        - core / transport
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the operation (purchase, verify, refund, inquiry, callback) and the error you got.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: exchange
+    attributes:
+      label: Request and response
+      description: The provider payloads, redacted. `PurchaseResponse.Raw` and `VerifyResponse.Raw` carry them.
+      render: text
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Code that reproduces it
+      render: go
+
+  - type: input
+    id: go
+    attributes:
+      label: Go version
+      placeholder: go1.26.0 darwin/arm64

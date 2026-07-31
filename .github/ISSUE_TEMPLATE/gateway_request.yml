@@ -1,0 +1,48 @@
+name: New gateway
+description: Ask for a provider Payvand does not support yet
+labels: [gateway]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Provider
+      placeholder: Digipay
+    validations:
+      required: true
+
+  - type: input
+    id: docs
+    attributes:
+      label: Link to the provider documentation
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: operations
+    attributes:
+      label: Operations the provider offers
+      options:
+        - label: payment request / token
+        - label: verification
+        - label: settlement as a separate call
+        - label: refund or reversal
+        - label: transaction inquiry
+        - label: split settlement
+
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Protocol
+      options:
+        - REST / JSON
+        - REST / form encoded
+        - SOAP
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything unusual
+      description: Signing, encryption, POST redirects, amount unit, sandbox availability.

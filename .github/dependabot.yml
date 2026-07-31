@@ -1,0 +1,11 @@
+version: 2
+
+updates:
+  # Payvand has no Go dependencies by design, so only the workflow actions are
+  # ever updated here.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci

@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/amiranmanesh/payvand/wiki
+    about: Guides, gateway reference, migration and FAQ.
+  - name: API reference
+    url: https://pkg.go.dev/github.com/amiranmanesh/payvand
+    about: Every type and function, generated from the source.
+  - name: Report a vulnerability
+    url: https://github.com/amiranmanesh/payvand/security/advisories/new
+    about: Please do not use a public issue for security reports.
