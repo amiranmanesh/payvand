@@ -160,11 +160,15 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithMessage(firstNonEmpty(out.ResultDescription, Message(out.ResultCode)))
 	}
 
-	amount := req.Amount
-	if out.TransactionDetail.AffectiveAmount > 0 {
-		amount = core.Rial(out.TransactionDetail.AffectiveAmount)
-	} else if out.TransactionDetail.OriginalAmount > 0 {
-		amount = core.Rial(out.TransactionDetail.OriginalAmount)
+	// SEP reports the amount the card was actually charged next to the one the
+	// transaction was created for; the charged one is what the merchant is owed.
+	reported := out.TransactionDetail.AffectiveAmount
+	if reported <= 0 {
+		reported = out.TransactionDetail.OriginalAmount
+	}
+	amount, err := core.SettledAmount(Name, req.Amount, core.Rial(reported))
+	if err != nil {
+		return core.VerifyResponse{}, err
 	}
 
 	return core.VerifyResponse{

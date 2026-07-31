@@ -66,6 +66,22 @@ func TestPurchaseFailure(t *testing.T) {
 	}
 }
 
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/verifyTxnRandomSessionkey/ipg/VerifyTransaction": testutil.JSON(
+			`{"Success":true,"ResultCode":0,"TransactionDetail":{"RRN":"RRN-1","RefNum":"ref-1",
+			"AffectiveAmount":15000,"OriginalAmount":150000}}`),
+	})
+	gw, _ := saman.New(core.Config{TerminalID: "12345678"}, core.WithBaseURL(server.URL))
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{
+		ReferenceNumber: "ref-1", OrderID: "1001", Amount: core.Rial(150_000),
+	})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}
+
 func TestVerify(t *testing.T) {
 	var sent struct {
 		RefNum         string `json:"RefNum"`

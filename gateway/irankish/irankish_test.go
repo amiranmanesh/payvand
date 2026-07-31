@@ -121,6 +121,24 @@ func TestVerify(t *testing.T) {
 	}
 }
 
+func TestVerifyDetectsAmountMismatch(t *testing.T) {
+	server := testutil.NewServer(t, testutil.Routes{
+		"/api/v3/confirmation/purchase": testutil.JSON(`{"responseCode":"00","result":
+			{"retrievalReferenceNumber":"RRN-1","systemTraceAuditNumber":"TRACE-1","amount":15000}}`),
+	})
+	gw := newGateway(t, server.URL)
+
+	_, err := gw.Verify(context.Background(), core.VerifyRequest{
+		Token:           "tok-1",
+		ReferenceNumber: "RRN-1",
+		TraceNumber:     "TRACE-1",
+		Amount:          core.Rial(150_000),
+	})
+	if !errors.Is(err, core.ErrAmountMismatch) {
+		t.Fatalf("error = %v, want ErrAmountMismatch", err)
+	}
+}
+
 func TestVerifyNeedsCallbackFields(t *testing.T) {
 	gw := newGateway(t, "https://example.invalid")
 	if _, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "tok-1"}); !errors.Is(err, core.ErrInvalidRequest) {

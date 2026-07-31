@@ -199,9 +199,9 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 			WithCode(out.ResponseCode).WithMessage(firstNonEmpty(out.Description, Message(out.ResponseCode)))
 	}
 
-	amount := req.Amount
-	if out.Result.Amount > 0 {
-		amount = core.Rial(out.Result.Amount)
+	amount, err := core.SettledAmount(Name, req.Amount, core.Rial(out.Result.Amount))
+	if err != nil {
+		return core.VerifyResponse{}, err
 	}
 
 	return core.VerifyResponse{
