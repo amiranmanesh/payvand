@@ -22,7 +22,7 @@ func TestPurchase(t *testing.T) {
 		LastName         string `json:"lastName"`
 	}
 	server := testutil.NewServer(t, testutil.Routes{
-		"/api/payment/server": testutil.Capture(t, &sent, `{"Code":100,"Authority":"auth-1"}`),
+		"/api/payment/request": testutil.Capture(t, &sent, `{"Code":100,"Authority":"auth-1"}`),
 	})
 
 	gw, err := yekpay.New(core.Config{MerchantKey: "merchant-1"}, core.WithBaseURL(server.URL))
@@ -51,13 +51,41 @@ func TestPurchase(t *testing.T) {
 	}
 }
 
+func TestSandboxUsesItsOwnPaths(t *testing.T) {
+	// The sandbox is not a mirror of the production paths, so a gateway built
+	// with WithSandbox must call /api/sandbox/* and redirect there too. The
+	// fake server fails any other path, which is the assertion.
+	server := testutil.NewServer(t, testutil.Routes{
+		"/api/sandbox/request": testutil.JSON(`{"Code":100,"Authority":"auth-1"}`),
+		"/api/sandbox/verify":  testutil.JSON(`{"Code":100,"Reference":"REF-9","OrderNo":"1001"}`),
+	})
+	gw, err := yekpay.New(core.Config{MerchantKey: "merchant-1"},
+		core.WithSandbox(true), core.WithBaseURL(server.URL))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	res, err := gw.Purchase(context.Background(), core.PurchaseRequest{
+		Amount: core.Rial(150_000), OrderID: "1001", CallbackURL: "https://shop.example/callback",
+	})
+	if err != nil {
+		t.Fatalf("Purchase() error = %v", err)
+	}
+	if res.Redirect.URL != server.URL+"/api/sandbox/payment/auth-1" {
+		t.Fatalf("redirect = %q", res.Redirect.URL)
+	}
+	if _, err := gw.Verify(context.Background(), core.VerifyRequest{Token: "auth-1"}); err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+}
+
 func TestPurchaseWithForeignCurrency(t *testing.T) {
 	var sent struct {
 		Amount           int64 `json:"amount"`
 		FromCurrencyCode int   `json:"fromCurrencyCode"`
 	}
 	server := testutil.NewServer(t, testutil.Routes{
-		"/api/payment/server": testutil.Capture(t, &sent, `{"Code":100,"Authority":"a"}`),
+		"/api/payment/request": testutil.Capture(t, &sent, `{"Code":100,"Authority":"a"}`),
 	})
 	gw, _ := yekpay.New(core.Config{MerchantKey: "m"},
 		core.WithBaseURL(server.URL), yekpay.WithCurrencies(yekpay.CurrencyEUR, yekpay.CurrencyIRR))

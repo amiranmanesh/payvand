@@ -2,6 +2,11 @@
 //
 // Credentials: [core.Config.MerchantKey] is the merchant id. YekPay is
 // multi-currency; see [WithCurrencies].
+//
+// [core.WithSandbox] switches the terminal to YekPay's public sandbox, which
+// runs the whole cycle against the same merchant id and lets the tester pick
+// the outcome on the payment page. The sandbox is a different host *and* a
+// different path set, not a mirror of the production paths.
 package yekpay
 
 import (
@@ -18,12 +23,40 @@ import (
 // Name is the registry name of this gateway.
 const Name core.Name = "yekpay"
 
-// Provider endpoints.
+// Provider hosts. The sandbox is a host of its own rather than a flag on the
+// production one.
 const (
-	defaultBase  = "https://gate.yekpay.com"
-	requestPath  = "/api/payment/server"
-	verifyPath   = "/api/payment/verify"
-	redirectPath = "/api/payment/start/"
+	productionBase = "https://gate.yekpay.com"
+	sandboxBase    = "https://api.ypsapi.com"
+)
+
+// endpoints is the path set of one YekPay environment. The sandbox does not
+// mirror the production paths, so the host and the paths are always chosen
+// together.
+type endpoints struct {
+	// request creates the payment and returns the authority.
+	request string
+	// verify settles it.
+	verify string
+	// redirect is the prefix the authority is appended to.
+	redirect string
+}
+
+var (
+	// productionPaths are the REST paths of the live gateway. The neighbouring
+	// /api/payment/server is the SOAP endpoint and answers a JSON body with a
+	// SOAP fault, so it is not the one to post to.
+	productionPaths = endpoints{
+		request:  "/api/payment/request",
+		verify:   "/api/payment/verify",
+		redirect: "/api/payment/start/",
+	}
+	// sandboxPaths are the same three calls in YekPay's test environment.
+	sandboxPaths = endpoints{
+		request:  "/api/sandbox/request",
+		verify:   "/api/sandbox/verify",
+		redirect: "/api/sandbox/payment/",
+	}
 )
 
 // codeSuccess is the success code of every YekPay response.
@@ -46,6 +79,7 @@ type Gateway struct {
 	settings *config
 	client   *transport.Client
 	baseURL  string
+	paths    endpoints
 }
 
 var _ core.Gateway = (*Gateway)(nil)
@@ -58,7 +92,12 @@ func New(cfg core.Config, opts ...core.Option) (*Gateway, error) {
 			WithMessage("MerchantKey (merchant id) is required")
 	}
 
-	baseURL := defaultBase
+	baseURL, paths := productionBase, productionPaths
+	if options.Sandbox {
+		baseURL, paths = sandboxBase, sandboxPaths
+	}
+	// A pinned base URL replaces the host only: the caller is redirecting the
+	// chosen environment somewhere else, not asking for the other one's paths.
 	if options.BaseURL != "" {
 		baseURL = options.BaseURL
 	}
@@ -70,6 +109,7 @@ func New(cfg core.Config, opts ...core.Option) (*Gateway, error) {
 		settings:    gwopt.From[config](options, string(Name)),
 		client:      transport.New(options),
 		baseURL:     baseURL,
+		paths:       paths,
 	}
 	if gateway.settings.fromCurrency == 0 {
 		gateway.settings.fromCurrency = CurrencyIRR
@@ -111,7 +151,7 @@ func (g *Gateway) Purchase(ctx context.Context, req core.PurchaseRequest) (core.
 	first, last := splitName(req.PayerName)
 
 	var out requestResponse
-	res, err := g.client.JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, requestPath), requestBody{
+	res, err := g.client.JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, g.paths.request), requestBody{
 		MerchantID:       g.cfg.MerchantKey,
 		Amount:           g.amount(req.Amount),
 		FromCurrencyCode: g.settings.fromCurrency,
@@ -140,7 +180,7 @@ func (g *Gateway) Purchase(ctx context.Context, req core.PurchaseRequest) (core.
 		Raw:     res.Body,
 		Redirect: core.Redirect{
 			Method: http.MethodGet,
-			URL:    transport.JoinURL(g.baseURL, redirectPath+out.Authority),
+			URL:    transport.JoinURL(g.baseURL, g.paths.redirect+out.Authority),
 		},
 	}, nil
 }
@@ -153,7 +193,7 @@ func (g *Gateway) Verify(ctx context.Context, req core.VerifyRequest) (core.Veri
 	}
 
 	var out verifyResponseBody
-	res, err := g.client.JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, verifyPath), verifyBody{
+	res, err := g.client.JSON(ctx, http.MethodPost, transport.JoinURL(g.baseURL, g.paths.verify), verifyBody{
 		MerchantID: g.cfg.MerchantKey,
 		Authority:  req.Token,
 	}, nil, &out)

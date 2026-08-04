@@ -559,6 +559,38 @@ make test        # go test -race ./...
 make cover       # coverage summary
 ```
 
+**Against the provider's own sandbox**, pass `payvand.WithSandbox(true)`. The
+providers disagree about what a sandbox even is, so the option only does
+something where the switch is a public, fixed one — a test host or a published
+test credential. Where the provider issues a *personal* test credential
+instead, there is nothing for the option to switch: use the credential as your
+`Config` and leave the option out.
+
+| Gateway | `WithSandbox(true)` does | Notes |
+|---|---|---|
+| `Zibal` | sends the merchant id `zibal` | ignores your own merchant id |
+| `Pay.ir` | sends the api key `test` | |
+| `BitPay` | sends BitPay's published demo key | |
+| `IDPay` | adds the `X-SANDBOX: 1` header | keeps your api key |
+| `Zarinpal` | switches to `sandbox.zarinpal.com` | |
+| `Digipay` | switches to Digipay's sandbox host | credentials still issued by Digipay |
+| `YekPay` | switches to `api.ypsapi.com` and its `/api/sandbox/*` paths | same merchant id; the test page lets you choose success or failure |
+
+Providers whose sandbox is a credential you request, on the same endpoints —
+`WithSandbox` is a no-op, so just build the gateway with the test credential:
+
+| Gateway | How to get into the test flow |
+|---|---|
+| `PayPing` | issue a **test token** in the developer console and pass it as `MerchantKey`. Test tokens cap the amount (error `104`) and the number of transactions (error `112`) |
+| `Vandar` | ask Vandar support to add you to the "سند باکس" business and pass the test `api_key` as `MerchantKey` |
+
+Every other gateway — the bank acquirers (Mellat, Saman, Parsian, Pasargad,
+Sadad, Sepehr, AsanPardakht, Iran Kish), the BNPL providers (SnappPay,
+TorobPay, Tara), TOP, Jibit, NextPay and PayWeb — publishes no sandbox at all.
+Test those against the virtual gateway or an `httptest.Server`; a bank test
+terminal, where one exists, is issued per merchant and is reached with
+`WithBaseURL`.
+
 ---
 
 ## Adding your own gateway

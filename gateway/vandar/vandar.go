@@ -2,6 +2,10 @@
 //
 // Credentials: [core.Config.MerchantKey] is the API key of the IPG, and
 // [core.Config.MerchantID] is the business name used by the refund endpoint.
+//
+// Vandar's sandbox is a test API key its support issues against a sandbox
+// business, on the same endpoints, so [core.WithSandbox] has nothing to
+// switch: pass the test key as MerchantKey and the test flow runs.
 package vandar
 
 import (

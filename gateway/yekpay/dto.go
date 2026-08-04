@@ -1,6 +1,6 @@
 package yekpay
 
-// requestBody is the body of POST /api/payment/server.
+// requestBody is the body of POST /api/payment/request.
 type requestBody struct {
 	MerchantID       string `json:"merchantId"`
 	Amount           int64  `json:"amount"`

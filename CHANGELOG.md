@@ -28,8 +28,20 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and converting to. The unit of every other gateway was re-checked against the
   provider's own documentation in the same pass and none of them moved.
 
+### Fixed
+
+- **YekPay purchases went to the SOAP endpoint.** `Purchase` posted its JSON
+  body to `/api/payment/server`, which is YekPay's SOAP service and answers a
+  JSON body with a SOAP fault. It posts to the REST endpoint
+  `/api/payment/request` now, which is what the provider documents for a JSON
+  client.
+
 ### Added
 
+- **YekPay sandbox.** `WithSandbox(true)` switches to `api.ypsapi.com` and its
+  `/api/sandbox/*` paths — the sandbox is not a mirror of the production paths,
+  so the host and the path set are chosen together. The merchant id stays
+  yours, and the test page lets the tester pick success or failure.
 - `ErrVerificationPending`: the provider accepted the verification but has not
   settled it yet. PayPing answers `202`/`502` while it is still working; the
   documented recovery is to call `Verify` again, never to charge the payer a

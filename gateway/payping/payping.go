@@ -4,6 +4,12 @@
 // PayPing works in Toman — its specification states that every one of its
 // services does — and Payvand converts the amount for you.
 //
+// PayPing's sandbox is a *test token* issued in its developer console rather
+// than a separate host, so [core.WithSandbox] has nothing to switch: build the
+// gateway with the test token as MerchantKey and the same endpoints run the
+// test flow. Test tokens cap the amount (provider code 104) and the number of
+// transactions (code 112).
+//
 // The v3 flow differs from v2 in three ways that matter to a caller: the
 // payment is identified by a payment code plus a numeric payment reference
 // rather than by a single reference, the callback arrives as a POST form whose
