@@ -219,7 +219,7 @@ All twenty-five are implemented and covered by tests.
 | IDPay | `IDPay` | REST | GET | ✅ | ➖ | ✅ | ✅ | ➖ |
 | Pay.ir | `PayIr` | REST (form) | GET | ✅ | ➖ | ➖ | ✅ | ➖ |
 | NextPay | `NextPay` | REST | GET | ✅ | ✅ | ➖ | ✅ | ➖ |
-| PayPing | `PayPing` | REST | GET | ✅ | ➖ | ➖ | ✅ | ➖ |
+| PayPing | `PayPing` | REST v3 | GET | ✅ | ✅ | ✅ | ✅ | ✅ |
 | BitPay.ir | `BitPay` | REST (form) | GET | ✅ | ➖ | ➖ | ✅ | ➖ |
 | YekPay | `YekPay` | REST | GET | ✅ | ➖ | ➖ | ✅ | ➖ |
 | Sadad / Bank Melli | `Sadad` | REST + 3DES | GET | ✅ | ➖ | ➖ | ✅ | ➖ |
@@ -341,9 +341,9 @@ if gw.Capabilities().Refund {
 
 ## Amounts: Rial and Toman
 
-Iranian providers disagree about the unit: most want Rial, PayPing wants
-Toman, Zarinpal terminals can be either. Payvand keeps the caller's unit
-explicit and converts per gateway.
+Iranian providers disagree about the unit: most want Rial, PayPing works in
+Toman throughout its API, and Zarinpal and NextPay terminals can be either.
+Payvand keeps the caller's unit explicit and converts per gateway.
 
 ```go
 payvand.Toman(15_000)          // 15,000 Toman
@@ -457,7 +457,7 @@ A tour of what each package offers:
 | `idpay` | `WithDefaultDescription` |
 | `payir` | `WithOrderAsFactorNumber`, `WithDefaultDescription` |
 | `nextpay` | `WithCurrency`, `WithAutoVerify`, `WithDefaultDescription` |
-| `payping` | `WithPayerIdentity`, `WithDefaultDescription` |
+| `payping` | `WithPayerIdentity`, `WithReversible`, `WithBlockedSettlement`, `WithMultiplexing`, `WithDefaultDescription` |
 | `bitpay` | `WithDefaultDescription` |
 | `yekpay` | `WithCurrencies`, `WithAddress`, `WithDefaultDescription` |
 | `sadad` | `WithApplicationName`, `WithAdditionalData`, `WithMobileAsUserID` |
@@ -509,15 +509,18 @@ case errors.Is(err, payvand.ErrPaymentFailed):
 | `ErrPaymentFailed` | the provider rejected the operation |
 | `ErrPaymentCanceled` | the payer aborted |
 | `ErrAlreadyVerified` | the transaction was verified before |
+| `ErrVerificationPending` | the provider is still settling; call `Verify` again |
 | `ErrAmountMismatch` | the settled amount differs from the requested one |
 | `ErrUnexpectedResponse` | the provider answered with something unreadable |
 
-Both of the first two are worth handling explicitly. `ErrAlreadyVerified` is
-what a refreshed callback page looks like on every gateway whose provider
-signals it, so treat it as "already paid" rather than as a failure — never as a
-reason to fulfil the order a second time. `ErrAmountMismatch` means the payment
-settled for something other than what was ordered, which is the shape a replayed
-token takes: stop, and reconcile by hand.
+Three of them are worth handling explicitly. `ErrAlreadyVerified` is what a
+refreshed callback page looks like on every gateway whose provider signals it,
+so treat it as "already paid" rather than as a failure — never as a reason to
+fulfil the order a second time. `ErrVerificationPending` (PayPing) means the
+answer has not arrived yet: retry the verification, and do not send the payer
+back to the bank. `ErrAmountMismatch` means the payment settled for something
+other than what was ordered, which is the shape a replayed token takes: stop,
+and reconcile by hand.
 
 Gateways that publish a code table expose it as a function — `mellat.Message`,
 `irankish.Message`, `saman.Message`, `nextpay.Message`, `bitpay.Message` — with

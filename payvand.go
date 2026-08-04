@@ -228,6 +228,9 @@ var (
 	ErrPaymentCanceled = core.ErrPaymentCanceled
 	// ErrAlreadyVerified is returned for a repeated verification.
 	ErrAlreadyVerified = core.ErrAlreadyVerified
+	// ErrVerificationPending is returned when the provider is still settling
+	// the payment and Verify must be called again.
+	ErrVerificationPending = core.ErrVerificationPending
 	// ErrAmountMismatch is returned when the settled amount differs.
 	ErrAmountMismatch = core.ErrAmountMismatch
 	// ErrUnexpectedResponse is returned for an unreadable provider answer.

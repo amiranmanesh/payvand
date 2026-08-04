@@ -25,6 +25,11 @@ var (
 	ErrPaymentCanceled = errors.New("payvand: payment canceled by payer")
 	// ErrAlreadyVerified is returned when the transaction was verified before.
 	ErrAlreadyVerified = errors.New("payvand: payment already verified")
+	// ErrVerificationPending is returned when the provider accepted the
+	// verification but has not settled it yet. The payment is neither failed
+	// nor confirmed: call Verify again instead of asking the payer to pay a
+	// second time.
+	ErrVerificationPending = errors.New("payvand: verification still in progress")
 	// ErrAmountMismatch is returned when the verified amount differs from the
 	// amount the caller asked to verify.
 	ErrAmountMismatch = errors.New("payvand: verified amount does not match requested amount")

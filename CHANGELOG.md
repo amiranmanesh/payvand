@@ -6,7 +6,40 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- **PayPing moved from API v2 to API v3.** PayPing has published v3 as its
+  payment API; v2 was what Payvand spoke. The endpoints, the identifiers and
+  the callback shape all changed, so this is a breaking change for the PayPing
+  gateway alone:
+  - `Purchase` posts to `/v3/pay` and `PurchaseResponse.Token` is now the
+    **payment code**, not the v2 reference. The payer is sent to the address
+    PayPing returns, falling back to `/v3/pay/start/{paymentCode}`.
+  - `Verify` posts to `/v3/pay/verify` and needs **both** the payment code and
+    the numeric `paymentRefId` — v2 keyed on the reference alone. Build the
+    request with `Callback.VerifyRequest`, which carries both, and keep passing
+    the amount from your own order record.
+  - The callback is an `x-www-form-urlencoded` **POST** carrying `status`,
+    `errorCode` and a `data` JSON document. `ParseCallback` flattens the
+    document into `Callback.Values`, so raw field lookups keep working, and
+    still reads the older flat query string.
+- The amount unit is unchanged: PayPing's specification states that every one
+  of its services works in **Toman**, which is what Payvand has been sending
+  and converting to. The unit of every other gateway was re-checked against the
+  provider's own documentation in the same pass and none of them moved.
+
+### Added
+
+- `ErrVerificationPending`: the provider accepted the verification but has not
+  settled it yet. PayPing answers `202`/`502` while it is still working; the
+  documented recovery is to call `Verify` again, never to charge the payer a
+  second time.
+- PayPing gained `Refund` (`/v3/pay/reverse`, whole payment back to the payer's
+  card within thirty minutes of verification), `Inquiry` (the payment report
+  PayPing documents for a callback that never arrived) and split settlement.
+- PayPing options: `WithReversible` — required at creation time before a
+  reversal is accepted — `WithBlockedSettlement`, and `WithMultiplexing`, whose
+  shares are checked to add up to the requested amount before anything is sent.
 
 ## [1.2.0] — 2026-07-31
 
